@@ -12,7 +12,7 @@ class PhysicsEngine {
 
     // Use a more robust solver for better stacking stability
     this.world.solver.iterations = 10;
-    
+
     // Performance setting: allow bodies to "sleep" when they are not moving
     this.world.allowSleep = true;
 
@@ -45,6 +45,8 @@ class PhysicsEngine {
 
     // Create a Cannon.js Material for the object
     const material = new CANNON.Material();
+    material.restitution = restitution;
+    material.friction = friction;
 
     // --- Shape Calculation ---
     // We create a single bounding box shape that covers the entire voxel object.
@@ -57,7 +59,7 @@ class PhysicsEngine {
     const halfExtents = new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2);
 
     const shape = new CANNON.Box(halfExtents);
-    
+
     // Create the Cannon.js Body
     const body = new CANNON.Body({
       mass: mass,
@@ -119,27 +121,27 @@ class PhysicsEngine {
   update(deltaTime) {
     // We use a fixed timestep for stability. 1/60 is a good standard (60 FPS).
     const fixedTimeStep = 1 / 60;
-    
+
     // Step the physics world
     this.world.step(fixedTimeStep, deltaTime, 3);
 
     // --- Synchronization ---
     // Copy the positions and rotations from Cannon-es bodies to Three.js meshes.
     for (const [mesh, body] of this.objectMap.entries()) {
-      
+
       // If the body is kinematic, it means we are dragging it.
       // We must update the physics body's position FROM the mesh's position.
       if (body.type === CANNON.Body.KINEMATIC) {
         body.position.copy(mesh.position);
         body.quaternion.copy(mesh.quaternion);
       }
-      
+
       // If the body is sleeping, it hasn't moved, so we can skip updating it.
       // This is a great performance optimization.
       if (body.sleepState === CANNON.Body.SLEEPING) {
-          continue;
+        continue;
       }
-      
+
       // For all other (dynamic) bodies, update the mesh's position
       // FROM the physics body's position.
       mesh.position.copy(body.position);

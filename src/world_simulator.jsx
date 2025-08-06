@@ -29,38 +29,38 @@ class SceneManager {
     this.mouse = new THREE.Vector2();
     this.physicsEngine = new PhysicsEngine();
     this.voxelObjects = [];
-    
+
     // 控制状态
     this.isRotating = false;
     this.isDragging = false;
     this.dragObject = null;
     this.dragPlane = new THREE.Plane();
     this.dragOffset = new THREE.Vector3();
-    
+
     // 鼠标跟踪
     this.lastMouseX = 0;
     this.lastMouseY = 0;
     this.mouseDownX = 0;
     this.mouseDownY = 0;
-    
+
     // 选中状态
     this.selectedObject = null;
     this.selectionBox = null;
     this.onObjectSelected = null;
-    
+
     // 摄像机控制
     this.cameraTarget = { x: 0, y: 0 };
     this.cameraRadius = 15;
-    
+
     // 放置模式
     this.placementMode = false;
     this.placementObject = null;
     this.placementCallback = null;
-    
+
     // 动画循环控制
     this.animationId = null;
     this.isAnimating = false;
-    
+
     this.init();
     this.setupScene();
     this.setupControls();
@@ -69,12 +69,12 @@ class SceneManager {
 
   init() {
     console.log('SceneManager: 初始化渲染器');
-    
+
     // 如果已有渲染器，先清理
     if (this.renderer) {
       this.renderer.dispose();
     }
-    
+
     // 检查容器尺寸
     if (this.container.clientWidth === 0 || this.container.clientHeight === 0) {
       console.log('SceneManager: 容器尺寸为0，等待容器显示');
@@ -85,34 +85,34 @@ class SceneManager {
       setTimeout(() => this.init(), 100);
       return;
     }
-    
+
     console.log('SceneManager: 容器尺寸:', this.container.clientWidth, 'x', this.container.clientHeight);
-    
+
     try {
       // 创建新的渲染器
-      this.renderer = new THREE.WebGLRenderer({ 
+      this.renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: true,
         preserveDrawingBuffer: false
       });
-      
+
       this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
       this.renderer.setClearColor(0x87CEEB);
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      
+
       // 清除容器中的旧元素
       while (this.container.firstChild) {
         this.container.removeChild(this.container.firstChild);
       }
-      
+
       this.container.appendChild(this.renderer.domElement);
-      
+
       // 设置初始摄像机位置
       this.cameraTarget = { x: Math.PI / 4, y: Math.PI / 6 }; // 45度水平角，30度垂直角
       this.updateCamera();
       console.log('SceneManager: 初始化完成，摄像机位置:', this.camera.position);
-      
+
       // 立即渲染一次确保画面显示
       this.forceRender();
     } catch (error) {
@@ -126,13 +126,13 @@ class SceneManager {
     // 环境光
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambientLight);
-    
+
     // 定向光
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(10, 10, 5);
     directionalLight.castShadow = true;
     this.scene.add(directionalLight);
-    
+
     // 地面
     const groundGeometry = new THREE.PlaneGeometry(20, 20);
     const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x90EE90 });
@@ -141,7 +141,7 @@ class SceneManager {
     this.ground.receiveShadow = true;
     this.ground.userData.isGround = true;
     this.scene.add(this.ground);
-    
+
     // 网格辅助线
     const gridHelper = new THREE.GridHelper(20, 20);
     this.scene.add(gridHelper);
@@ -149,13 +149,13 @@ class SceneManager {
 
   setupControls() {
     const canvas = this.renderer.domElement;
-    
+
     // 绑定事件处理器，保存引用以便后续移除
     this.boundMouseDown = this.onMouseDown.bind(this);
     this.boundMouseMove = this.onMouseMove.bind(this);
     this.boundMouseUp = this.onMouseUp.bind(this);
     this.boundWheel = this.onWheel.bind(this);
-    
+
     // 鼠标事件
     canvas.addEventListener('mousedown', this.boundMouseDown);
     canvas.addEventListener('mousemove', this.boundMouseMove);
@@ -168,22 +168,22 @@ class SceneManager {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    
+
     // 记录鼠标按下位置
     this.mouseDownX = event.clientX;
     this.mouseDownY = event.clientY;
     this.lastMouseX = event.clientX;
     this.lastMouseY = event.clientY;
-    
+
     if (this.placementMode) {
       // 放置模式
       this.handlePlacement();
       return;
     }
-    
+
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-    
+
     let clickedVoxelObject = null;
     for (let intersect of intersects) {
       let obj = intersect.object;
@@ -195,17 +195,17 @@ class SceneManager {
         break;
       }
     }
-    
+
     if (event.button === 0) { // 左键
       if (clickedVoxelObject) {
         // 选中物体
         this.selectObject(clickedVoxelObject);
-        
+
         // 开始拖拽物体
         this.isDragging = true;
         this.dragObject = clickedVoxelObject;
         this.physicsEngine.setDragging(clickedVoxelObject, true);
-        
+
         // 计算拖拽平面和偏移
         const intersect = intersects.find(i => {
           let obj = i.object;
@@ -214,7 +214,7 @@ class SceneManager {
           }
           return obj === clickedVoxelObject;
         });
-        
+
         if (intersect) {
           this.dragPlane.setFromNormalAndCoplanarPoint(
             this.camera.getWorldDirection(new THREE.Vector3()).negate(),
@@ -235,7 +235,7 @@ class SceneManager {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    
+
     if (this.placementMode && this.placementObject) {
       // 更新放置预览位置
       this.raycaster.setFromCamera(this.mouse, this.camera);
@@ -255,15 +255,15 @@ class SceneManager {
       // 旋转摄像机 - 使用更可靠的鼠标位置跟踪
       const deltaX = event.clientX - this.lastMouseX;
       const deltaY = event.clientY - this.lastMouseY;
-      
+
       console.log('SceneManager: 旋转摄像机', { deltaX, deltaY, isRotating: this.isRotating });
-      
+
       this.cameraTarget.x += deltaX * 0.01;
-      this.cameraTarget.y = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.cameraTarget.y - deltaY * 0.01));
-      
+      this.cameraTarget.y = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.cameraTarget.y - deltaY * 0.01));
+
       this.updateCamera();
     }
-    
+
     // 更新鼠标位置
     this.lastMouseX = event.clientX;
     this.lastMouseY = event.clientY;
@@ -275,7 +275,7 @@ class SceneManager {
       this.isDragging = false;
       this.dragObject = null;
     }
-    
+
     this.isRotating = false;
   }
 
@@ -292,28 +292,28 @@ class SceneManager {
       this.scene.remove(this.selectionBox);
       this.selectionBox = null;
     }
-    
+
     this.selectedObject = object;
-    
+
     if (object) {
       // 创建选中边框
       const box = new THREE.Box3().setFromObject(object);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
-      
+
       const geometry = new THREE.BoxGeometry(size.x + 0.2, size.y + 0.2, size.z + 0.2);
       const edges = new THREE.EdgesGeometry(geometry);
-      const lineMaterial = new THREE.LineBasicMaterial({ 
-        color: 0xff0000, 
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color: 0xff0000,
         linewidth: 3,
         transparent: true,
         opacity: 0.8
       });
-      
+
       this.selectionBox = new THREE.LineSegments(edges, lineMaterial);
       this.selectionBox.position.copy(center);
       this.scene.add(this.selectionBox);
-      
+
       // 通知外部组件有物体被选中
       if (this.onObjectSelected) {
         this.onObjectSelected(object);
@@ -331,24 +331,24 @@ class SceneManager {
     if (this.selectedObject) {
       // 从场景中移除
       this.scene.remove(this.selectedObject);
-      
+
       // 从物理引擎中移除
       this.physicsEngine.removeObject(this.selectedObject);
-      
+
       // 从voxelObjects数组中移除
       const index = this.voxelObjects.indexOf(this.selectedObject);
       if (index > -1) {
         this.voxelObjects.splice(index, 1);
       }
-      
+
       // 移除选中边框
       if (this.selectionBox) {
         this.scene.remove(this.selectionBox);
         this.selectionBox = null;
       }
-      
+
       this.selectedObject = null;
-      
+
       // 通知外部组件
       if (this.onObjectSelected) {
         this.onObjectSelected(null);
@@ -365,7 +365,7 @@ class SceneManager {
     const x = this.cameraRadius * Math.cos(this.cameraTarget.y) * Math.cos(this.cameraTarget.x);
     const y = this.cameraRadius * Math.sin(this.cameraTarget.y);
     const z = this.cameraRadius * Math.cos(this.cameraTarget.y) * Math.sin(this.cameraTarget.x);
-    
+
     this.camera.position.set(x, y, z);
     this.camera.lookAt(0, 0, 0);
   }
@@ -374,15 +374,15 @@ class SceneManager {
   enterPlacementMode(voxels, mass, restitution, scale, callback) {
     this.placementMode = true;
     this.placementCallback = callback;
-    
+
     // 创建预览物体
     this.placementObject = createVoxelObject(voxels, mass, restitution, scale);
-    this.placementObject.material = new THREE.MeshLambertMaterial({ 
-      color: 0xffffff, 
-      transparent: true, 
-      opacity: 0.7 
+    this.placementObject.material = new THREE.MeshLambertMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.7
     });
-    
+
     // 给所有子物体设置透明材质
     this.placementObject.traverse((child) => {
       if (child.isMesh) {
@@ -391,7 +391,7 @@ class SceneManager {
         child.material.opacity = 0.7;
       }
     });
-    
+
     this.scene.add(this.placementObject);
   }
 
@@ -403,22 +403,22 @@ class SceneManager {
       const mass = this.placementObject.userData.mass;
       const restitution = this.placementObject.userData.restitution;
       const scale = this.placementObject.scale.x;
-      
+
       // 移除预览物体
       this.scene.remove(this.placementObject);
-      
+
       // 创建真实物体
       const realObject = createVoxelObject(voxels, mass, restitution, scale);
       realObject.position.copy(position);
-      
+
       this.scene.add(realObject);
       this.physicsEngine.addObject(realObject);
       this.voxelObjects.push(realObject);
-      
+
       // 退出放置模式
       this.placementMode = false;
       this.placementObject = null;
-      
+
       if (this.placementCallback) {
         this.placementCallback(realObject); // 传递创建的物体
         this.placementCallback = null;
@@ -442,7 +442,7 @@ class SceneManager {
     });
     this.voxelObjects = [];
     this.physicsEngine.clear();
-    
+
     // 清除选中状态
     this.selectObject(null);
   }
@@ -470,7 +470,7 @@ class SceneManager {
           console.error('SceneManager: 渲染器DOM元素丢失');
           return;
         }
-        
+
         // 检查容器尺寸和可见性
         if (this.container.clientWidth === 0 || this.container.clientHeight === 0) {
           console.log('SceneManager: 容器尺寸为0，强制设置尺寸');
@@ -479,21 +479,21 @@ class SceneManager {
           // 重新设置渲染器尺寸
           this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         }
-        
+
         // 检查容器是否可见
         const containerStyle = window.getComputedStyle(this.container);
         if (containerStyle.display === 'none' || containerStyle.visibility === 'hidden') {
           console.log('SceneManager: 容器不可见，跳过渲染');
           return;
         }
-        
+
         // 检查渲染器尺寸是否与容器匹配
-        if (this.renderer.domElement.width !== this.container.clientWidth || 
-            this.renderer.domElement.height !== this.container.clientHeight) {
+        if (this.renderer.domElement.width !== this.container.clientWidth ||
+          this.renderer.domElement.height !== this.container.clientHeight) {
           console.log('SceneManager: 渲染器尺寸不匹配，重新设置尺寸');
           this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         }
-        
+
         this.renderer.render(this.scene, this.camera);
       } catch (error) {
         console.error('SceneManager: 强制渲染失败:', error);
@@ -503,9 +503,9 @@ class SceneManager {
 
   animate() {
     if (!this.isAnimating) return;
-    
+
     this.animationId = requestAnimationFrame(() => this.animate());
-    
+
     try {
       // 检查渲染器状态
       if (!this.renderer || !this.scene || !this.camera) {
@@ -513,7 +513,7 @@ class SceneManager {
         this.stopAnimation();
         return;
       }
-      
+
       // 检查容器尺寸和可见性
       if (this.container.clientWidth === 0 || this.container.clientHeight === 0) {
         // 容器尺寸为0，强制设置尺寸
@@ -521,30 +521,30 @@ class SceneManager {
         this.container.style.height = '400px';
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
       }
-      
+
       // 检查容器是否可见
       const containerStyle = window.getComputedStyle(this.container);
       if (containerStyle.display === 'none' || containerStyle.visibility === 'hidden') {
         // 容器不可见，跳过渲染但继续动画循环
         return;
       }
-      
+
       // 检查渲染器尺寸是否与容器匹配
-      if (this.renderer.domElement.width !== this.container.clientWidth || 
-          this.renderer.domElement.height !== this.container.clientHeight) {
+      if (this.renderer.domElement.width !== this.container.clientWidth ||
+        this.renderer.domElement.height !== this.container.clientHeight) {
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
       }
-      
+
       // 更新物理引擎
       this.physicsEngine.update(0.016);
-      
+
       // 同步选中边框位置
       if (this.selectedObject && this.selectionBox) {
         const box = new THREE.Box3().setFromObject(this.selectedObject);
         const center = box.getCenter(new THREE.Vector3());
         this.selectionBox.position.copy(center);
       }
-      
+
       // 确保渲染器状态正确
       if (this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
@@ -564,18 +564,18 @@ class SceneManager {
 
   dispose() {
     console.log('SceneManager: 开始清理资源');
-    
+
     // 停止动画循环
     this.stopAnimation();
-    
+
     // 清理物理引擎
     if (this.physicsEngine) {
       this.physicsEngine.clear();
     }
-    
+
     // 清理场景中的所有物体
     this.clearObjects();
-    
+
     // 移除事件监听器
     if (this.renderer && this.renderer.domElement) {
       const canvas = this.renderer.domElement;
@@ -584,7 +584,7 @@ class SceneManager {
       if (this.boundMouseUp) canvas.removeEventListener('mouseup', this.boundMouseUp);
       if (this.boundWheel) canvas.removeEventListener('wheel', this.boundWheel);
     }
-    
+
     // 清理渲染器
     if (this.renderer) {
       if (this.renderer.domElement.parentNode) {
@@ -592,12 +592,12 @@ class SceneManager {
       }
       this.renderer.dispose();
     }
-    
+
     // 清理场景
     if (this.scene) {
       this.scene.clear();
     }
-    
+
     // 重置状态
     this.isRotating = false;
     this.isDragging = false;
@@ -608,7 +608,7 @@ class SceneManager {
     this.placementMode = false;
     this.placementObject = null;
     this.placementCallback = null;
-    
+
     console.log('SceneManager: 资源清理完成');
   }
 }
@@ -617,9 +617,9 @@ class SceneManager {
 const BackpackItem = ({ item, onPlace }) => {
   return (
     <div className="bg-white border-2 border-gray-200 rounded-lg p-2 hover:border-blue-400 transition-colors cursor-pointer"
-         onClick={() => onPlace(item)}>
-      <img 
-        src={item.thumbnail} 
+      onClick={() => onPlace(item)}>
+      <img
+        src={item.thumbnail}
         alt={`Item ${item.id}`}
         className="w-16 h-16 object-contain mb-2"
       />
@@ -648,9 +648,9 @@ const Backpack = ({ items, onPlaceItem, isVisible }) => {
       ) : (
         <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
           {items.map(item => (
-            <BackpackItem 
-              key={item.id} 
-              item={item} 
+            <BackpackItem
+              key={item.id}
+              item={item}
               onPlace={onPlaceItem}
             />
           ))}
@@ -665,7 +665,7 @@ const DeleteButton = ({ isVisible, onDelete, position }) => {
   if (!isVisible) return null;
 
   return (
-    <div 
+    <div
       className="absolute bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer shadow-lg transition-colors z-10"
       style={{
         left: position.x - 16,
@@ -728,7 +728,7 @@ const VoxelWorldEditor = ({ apiService }) => {
   const sceneContainerRef = useRef(null);
   const sceneManagerRef = useRef(null);
   const historyRef = useRef(null);
-  
+
   const [tool, setTool] = useState(TOOLS.BRUSH);
   const [color, setColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(3);
@@ -738,22 +738,22 @@ const VoxelWorldEditor = ({ apiService }) => {
   const [fillMode, setFillMode] = useState('fill');
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  
+
   // 界面显示模式
   const [viewMode, setViewMode] = useState('both'); // 'both', 'editor', '3d'
-  
+
   // 背包和放置相关状态
   const [backpackItems, setBackpackItems] = useState([]);
   const [showBackpack, setShowBackpack] = useState(true);
   const [placementMode, setPlacementMode] = useState(false);
   const [placementScale, setPlacementScale] = useState(1);
   const [nextItemId, setNextItemId] = useState(1);
-  
+
   // 选中和删除相关状态
   const [selectedObject, setSelectedObject] = useState(null);
   const [deleteButtonPosition, setDeleteButtonPosition] = useState({ x: 0, y: 0 });
   const [sceneObjectCount, setSceneObjectCount] = useState(0);
-  
+
   const [startPos, setStartPos] = useState(null);
 
   // AI生成器相关的状态
@@ -765,11 +765,11 @@ const VoxelWorldEditor = ({ apiService }) => {
   // 初始化3D场景和历史记录
   useEffect(() => {
     console.log('VoxelWorldEditor: 初始化3D场景');
-    
+
     if (sceneContainerRef.current && !sceneManagerRef.current) {
       console.log('VoxelWorldEditor: 创建SceneManager');
       sceneManagerRef.current = new SceneManager(sceneContainerRef.current);
-      
+
       // 设置选中物体回调
       sceneManagerRef.current.setObjectSelectedCallback((object) => {
         console.log('VoxelWorldEditor: 物体选中状态改变', object);
@@ -780,7 +780,7 @@ const VoxelWorldEditor = ({ apiService }) => {
         }
       });
     }
-    
+
     if (canvasRef.current && !historyRef.current) {
       console.log('VoxelWorldEditor: 创建CanvasHistory');
       historyRef.current = new CanvasHistory(canvasRef.current);
@@ -788,7 +788,7 @@ const VoxelWorldEditor = ({ apiService }) => {
       historyRef.current.saveState();
       updateHistoryButtons();
     }
-    
+
     return () => {
       console.log('VoxelWorldEditor: 清理资源');
       // 注意：不要在这里销毁SceneManager，让它保持状态
@@ -807,30 +807,6 @@ const VoxelWorldEditor = ({ apiService }) => {
     };
   }, []);
 
-  // 确保容器可见和正确显示
-  const ensureContainerVisible = () => {
-    const container = sceneContainerRef.current;
-    if (!container) return false;
-    
-    // 检查容器状态
-    const containerStyle = window.getComputedStyle(container);
-    const isVisible = containerStyle.display !== 'none' && 
-                     containerStyle.visibility !== 'hidden' &&
-                     container.clientWidth > 0 && 
-                     container.clientHeight > 0;
-    
-    if (!isVisible) {
-      console.log('VoxelWorldEditor: 容器不可见，强制设置状态');
-      container.style.display = 'block';
-      container.style.visibility = 'visible';
-      container.style.width = '100%';
-      container.style.height = '400px';
-      return false;
-    }
-    
-    return true;
-  };
-
   // 监听viewMode变化，确保3D场景正确初始化
   useEffect(() => {
     // 延迟执行以确保DOM尺寸更新完成
@@ -838,12 +814,12 @@ const VoxelWorldEditor = ({ apiService }) => {
       if (sceneManagerRef.current) {
         console.log('VoxelWorldEditor: 视图模式改变，调整3D场景尺寸');
         sceneManagerRef.current.resize();
-        
+
         // 如果动画停止了，可以尝试重启
         if (!sceneManagerRef.current.isAnimating) {
           sceneManagerRef.current.startAnimation();
         }
-        
+
         // 强制渲染一帧以确保立即更新
         sceneManagerRef.current.forceRender();
       }
@@ -875,7 +851,7 @@ const VoxelWorldEditor = ({ apiService }) => {
         sceneManagerRef.current.resize();
       }
     };
-    
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -883,32 +859,32 @@ const VoxelWorldEditor = ({ apiService }) => {
   // 定期更新删除按钮位置
   useEffect(() => {
     if (!selectedObject) return;
-    
+
     const updateInterval = setInterval(() => {
       if (selectedObject && sceneManagerRef.current) {
         updateDeleteButtonPosition(selectedObject);
       }
     }, 100); // 每100ms更新一次位置
-    
+
     return () => clearInterval(updateInterval);
   }, [selectedObject]);
 
   // 更新删除按钮位置
   const updateDeleteButtonPosition = (object) => {
     if (!sceneManagerRef.current || !object) return;
-    
+
     // 获取物体的屏幕坐标
     const vector = new THREE.Vector3();
     object.getWorldPosition(vector);
-    
+
     // 将3D坐标转换为屏幕坐标
     vector.project(sceneManagerRef.current.camera);
-    
+
     const container = sceneContainerRef.current;
     const rect = container.getBoundingClientRect();
     const x = (vector.x * 0.5 + 0.5) * rect.width;
     const y = (vector.y * -0.5 + 0.5) * rect.height;
-    
+
     setDeleteButtonPosition({ x, y });
   };
 
@@ -959,7 +935,7 @@ const VoxelWorldEditor = ({ apiService }) => {
     const pos = getMousePos(e);
     setIsDrawing(true);
     setStartPos(pos);
-    
+
     if (tool === TOOLS.BRUSH || tool === TOOLS.ERASER) {
       const ctx = canvasRef.current.getContext('2d');
       draw(ctx, pos.x, pos.y);
@@ -968,10 +944,10 @@ const VoxelWorldEditor = ({ apiService }) => {
 
   const handleMouseMove = (e) => {
     const pos = getMousePos(e);
-    
+
     if (isDrawing) {
       const ctx = canvasRef.current.getContext('2d');
-      
+
       if (tool === TOOLS.BRUSH || tool === TOOLS.ERASER) {
         draw(ctx, pos.x, pos.y);
       } else if (startPos && (tool === TOOLS.RECTANGLE || tool === TOOLS.CIRCLE || tool === TOOLS.LINE)) {
@@ -984,18 +960,18 @@ const VoxelWorldEditor = ({ apiService }) => {
 
   const handleMouseUp = (e) => {
     if (!isDrawing || !startPos) return;
-    
+
     const pos = getMousePos(e);
     const ctx = canvasRef.current.getContext('2d');
-    
+
     if (tool === TOOLS.RECTANGLE || tool === TOOLS.CIRCLE || tool === TOOLS.LINE) {
       drawShape(ctx, startPos.x, startPos.y, pos.x, pos.y, false);
       clearPreview();
     }
-    
+
     setIsDrawing(false);
     setStartPos(null);
-    
+
     if (historyRef.current) {
       historyRef.current.saveState();
       updateHistoryButtons();
@@ -1035,7 +1011,7 @@ const VoxelWorldEditor = ({ apiService }) => {
       if (!apiService) {
         throw new Error('API服务未初始化');
       }
-      
+
       const voxels = await generateVoxelsFromPrompt(aiPrompt, apiService.request.bind(apiService));
       if (voxels && voxels.length > 0) {
         addItemToBackpack(voxels);
@@ -1055,14 +1031,14 @@ const VoxelWorldEditor = ({ apiService }) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
+
     const voxels = sketchToVoxels(imageData.data, canvas.width, canvas.height);
-    
+
     if (voxels.length > 0) {
       addItemToBackpack(voxels);
       clearCanvas();
       clearPreview();
-      
+
       if (historyRef.current) {
         historyRef.current.saveState();
         updateHistoryButtons();
@@ -1075,10 +1051,10 @@ const VoxelWorldEditor = ({ apiService }) => {
     if (sceneManagerRef.current && !placementMode) {
       setPlacementMode(true);
       setPlacementScale(1);
-      
+
       sceneManagerRef.current.enterPlacementMode(
-        item.voxels, 
-        item.mass, 
+        item.voxels,
+        item.mass,
         item.restitution,
         placementScale,
         (createdObject) => {
@@ -1095,7 +1071,7 @@ const VoxelWorldEditor = ({ apiService }) => {
   const addPresetObject = (type) => {
     let voxels = [];
     let color = new THREE.Color(Math.random(), Math.random(), Math.random());
-    
+
     switch (type) {
       case 'cube':
         // 创建3x3x3的立方体
@@ -1107,13 +1083,13 @@ const VoxelWorldEditor = ({ apiService }) => {
           }
         }
         break;
-        
+
       case 'sphere':
         // 创建球形
         for (let x = -2; x <= 2; x++) {
           for (let y = -2; y <= 2; y++) {
             for (let z = -2; z <= 2; z++) {
-              const distance = Math.sqrt(x*x + y*y + z*z);
+              const distance = Math.sqrt(x * x + y * y + z * z);
               if (distance <= 2) {
                 voxels.push({ x, y, z, color });
               }
@@ -1121,7 +1097,7 @@ const VoxelWorldEditor = ({ apiService }) => {
           }
         }
         break;
-        
+
       case 'pyramid':
         // 创建金字塔
         for (let y = 0; y < 4; y++) {
@@ -1133,7 +1109,7 @@ const VoxelWorldEditor = ({ apiService }) => {
           }
         }
         break;
-        
+
       case 'cross':
         // 创建十字形
         // 垂直部分
@@ -1149,13 +1125,18 @@ const VoxelWorldEditor = ({ apiService }) => {
           voxels.push({ x: 0, y: 0, z, color });
         }
         break;
+
+      default:
+        // 默认创建单个体素
+        voxels.push({ x: 0, y: 0, z: 0, color });
+        break;
     }
-    
+
     if (voxels.length > 0 && sceneManagerRef.current) {
       // 随机生成物理属性
       const mass = 0.5 + Math.random() * 2; // 0.5-2.5kg
       const restitution = Math.random() * 0.8 + 0.2; // 0.2-1.0
-      
+
       // 直接添加到3D场景
       const object = createVoxelObject(voxels, mass, restitution, 1);
       object.position.set(
@@ -1163,7 +1144,7 @@ const VoxelWorldEditor = ({ apiService }) => {
         5 + Math.random() * 5,
         (Math.random() - 0.5) * 8
       );
-      
+
       sceneManagerRef.current.scene.add(object);
       sceneManagerRef.current.physicsEngine.addObject(object);
       sceneManagerRef.current.voxelObjects.push(object);
@@ -1177,7 +1158,7 @@ const VoxelWorldEditor = ({ apiService }) => {
     if (sceneManagerRef.current && sceneManagerRef.current.placementObject) {
       sceneManagerRef.current.placementObject.scale.set(newScale, newScale, newScale);
       // 更新弹性参数
-      sceneManagerRef.current.placementObject.userData.restitution = 
+      sceneManagerRef.current.placementObject.userData.restitution =
         sceneManagerRef.current.placementObject.userData.restitution || 0.5;
     }
   };
@@ -1220,7 +1201,7 @@ const VoxelWorldEditor = ({ apiService }) => {
   const resetAllContent = () => {
     if (window.confirm('确定要重置所有内容吗？这将清空绘图、3D场景和背包中的所有物品。')) {
       console.log('VoxelWorldEditor: 用户手动重置所有内容');
-      
+
       // 清空绘图
       if (canvasRef.current) {
         clearCanvas();
@@ -1229,14 +1210,14 @@ const VoxelWorldEditor = ({ apiService }) => {
           updateHistoryButtons();
         }
       }
-      
+
       // 清空3D场景
       clear3DScene();
-      
+
       // 清空背包
       setBackpackItems([]);
       setNextItemId(1);
-      
+
       // 重置绘图状态
       setTool(TOOLS.BRUSH);
       setColor('#000000');
@@ -1244,7 +1225,7 @@ const VoxelWorldEditor = ({ apiService }) => {
       setCurrentMass(1);
       setCurrentRestitution(0.5);
       setFillMode('fill');
-      
+
       console.log('VoxelWorldEditor: 所有内容已重置');
     }
   };
@@ -1267,25 +1248,25 @@ const VoxelWorldEditor = ({ apiService }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [placementMode]);
+  }, [placementMode, handleUndo, handleRedo]);
 
   // 模式切换时的状态保持
   const handleViewModeChange = (newMode) => {
     console.log('VoxelWorldEditor: 切换模式到', newMode);
-    
+
     // 在切换前保存当前状态
     if (viewMode === '3d' && sceneManagerRef.current) {
       // 保存3D场景状态
       console.log('VoxelWorldEditor: 保存3D场景状态');
     }
-    
+
     if ((viewMode === 'both' || viewMode === 'editor') && canvasRef.current) {
       // 保存绘图状态
       console.log('VoxelWorldEditor: 保存绘图状态');
     }
-    
+
     setViewMode(newMode);
-    
+
     // 如果切换到3D模式，确保场景正确初始化
     if (newMode === '3d') {
       setTimeout(() => {
@@ -1300,18 +1281,18 @@ const VoxelWorldEditor = ({ apiService }) => {
   // 错误恢复机制
   const recoverSceneManager = () => {
     console.log('VoxelWorldEditor: 尝试恢复SceneManager');
-    
+
     if (sceneContainerRef.current) {
       // 清理旧的SceneManager
       if (sceneManagerRef.current) {
         sceneManagerRef.current.dispose();
         sceneManagerRef.current = null;
       }
-      
+
       // 创建新的SceneManager
       try {
         sceneManagerRef.current = new SceneManager(sceneContainerRef.current);
-        
+
         // 设置选中物体回调
         sceneManagerRef.current.setObjectSelectedCallback((object) => {
           console.log('VoxelWorldEditor: 物体选中状态改变', object);
@@ -1320,7 +1301,7 @@ const VoxelWorldEditor = ({ apiService }) => {
             updateDeleteButtonPosition(object);
           }
         });
-        
+
         console.log('VoxelWorldEditor: SceneManager恢复成功');
         return true;
       } catch (error) {
@@ -1378,42 +1359,39 @@ const VoxelWorldEditor = ({ apiService }) => {
       <div className="bg-white shadow-sm p-3 border-b">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold text-gray-800">🎨 方块世界编辑器</h1>
-          
+
           <div className="flex items-center gap-4">
             {/* 视图切换按钮 */}
             <div className="flex gap-2">
               <button
                 onClick={() => handleViewModeChange('both')}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  viewMode === 'both' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                }`}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${viewMode === 'both'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
               >
                 📱 分屏模式
               </button>
               <button
                 onClick={() => handleViewModeChange('editor')}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  viewMode === 'editor' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                }`}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${viewMode === 'editor'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
               >
                 �� 绘图模式
               </button>
               <button
                 onClick={() => handleViewModeChange('3d')}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  viewMode === '3d' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                }`}
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${viewMode === '3d'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
               >
                 🌍 3D模式
               </button>
             </div>
-            
+
             {/* 重置按钮 */}
             <button
               onClick={resetAllContent}
@@ -1431,14 +1409,13 @@ const VoxelWorldEditor = ({ apiService }) => {
         {/* 左侧绘图区域 */}
         {
           <
-            div className={`p-4 transition-all duration-300 ${
-              viewMode === 'both' ? 'w-1/2' : viewMode === 'editor' ? 'w-full' : 'w-0'
-            }`}
+            div className={`p-4 transition-all duration-300 ${viewMode === 'both' ? 'w-1/2' : viewMode === 'editor' ? 'w-full' : 'w-0'
+              }`}
             style={{ display: viewMode === '3d' ? 'none' : 'block' }}
           >
             <div className="bg-white rounded-lg shadow-lg p-4 h-full overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4 text-center">🎨 草图编辑器</h2>
-              
+
               {/* 工具栏 */}
               <div className="mb-4">
                 {/* 撤销重做按钮 */}
@@ -1446,11 +1423,10 @@ const VoxelWorldEditor = ({ apiService }) => {
                   <button
                     onClick={handleUndo}
                     disabled={!canUndo}
-                    className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
-                      canUndo 
-                        ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
+                    className={`px-3 py-2 rounded text-sm font-medium transition-colors ${canUndo
+                      ? 'bg-blue-500 text-white hover:bg-blue-600'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
                     title="撤销 (Ctrl+Z)"
                   >
                     ↶ 撤销
@@ -1458,60 +1434,56 @@ const VoxelWorldEditor = ({ apiService }) => {
                   <button
                     onClick={handleRedo}
                     disabled={!canRedo}
-                    className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
-                      canRedo 
-                        ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
+                    className={`px-3 py-2 rounded text-sm font-medium transition-colors ${canRedo
+                      ? 'bg-blue-500 text-white hover:bg-blue-600'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
                     title="重做 (Ctrl+Y)"
                   >
                     ↷ 重做
                   </button>
                 </div>
-                
+
                 {/* 工具选择 */}
                 <div className="flex gap-2 mb-3 flex-wrap">
                   {Object.entries(TOOLS).map(([key, value]) => (
                     <button
                       key={key}
-                      className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
-                        tool === value 
-                          ? 'bg-blue-500 text-white shadow-md' 
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                      }`}
+                      className={`px-3 py-2 rounded text-sm font-medium transition-colors ${tool === value
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                        }`}
                       onClick={() => setTool(value)}
                     >
-                      {key === 'BRUSH' && '🖌️'} 
-                      {key === 'ERASER' && '🧹'} 
-                      {key === 'RECTANGLE' && '⬜'} 
-                      {key === 'CIRCLE' && '⭕'} 
-                      {key === 'LINE' && '📏'} 
+                      {key === 'BRUSH' && '🖌️'}
+                      {key === 'ERASER' && '🧹'}
+                      {key === 'RECTANGLE' && '⬜'}
+                      {key === 'CIRCLE' && '⭕'}
+                      {key === 'LINE' && '📏'}
                       {key}
                     </button>
                   ))}
                 </div>
-                
+
                 {/* 填充模式（仅几何图形） */}
                 {(tool === TOOLS.RECTANGLE || tool === TOOLS.CIRCLE) && (
                   <div className="mb-3">
                     <label className="block text-sm font-medium mb-2">🎯 填充模式:</label>
                     <div className="flex gap-2">
                       <button
-                        className={`px-3 py-1 rounded text-sm ${
-                          fillMode === 'fill' 
-                            ? 'bg-green-500 text-white' 
-                            : 'bg-gray-200 hover:bg-gray-300'
-                        }`}
+                        className={`px-3 py-1 rounded text-sm ${fillMode === 'fill'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 hover:bg-gray-300'
+                          }`}
                         onClick={() => setFillMode('fill')}
                       >
                         🔴 实心
                       </button>
                       <button
-                        className={`px-3 py-1 rounded text-sm ${
-                          fillMode === 'stroke' 
-                            ? 'bg-green-500 text-white' 
-                            : 'bg-gray-200 hover:bg-gray-300'
-                        }`}
+                        className={`px-3 py-1 rounded text-sm ${fillMode === 'stroke'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 hover:bg-gray-300'
+                          }`}
                         onClick={() => setFillMode('stroke')}
                       >
                         ⭕ 空心
@@ -1519,7 +1491,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                     </div>
                   </div>
                 )}
-                
+
                 {/* 颜色选择 */}
                 <div className="mb-3">
                   <label className="block text-sm font-medium mb-2">🎨 颜色选择:</label>
@@ -1527,9 +1499,8 @@ const VoxelWorldEditor = ({ apiService }) => {
                     {COLORS.map(c => (
                       <button
                         key={c}
-                        className={`w-8 h-8 rounded border-2 transition-transform hover:scale-110 ${
-                          color === c ? 'border-gray-800 shadow-lg' : 'border-gray-300'
-                        }`}
+                        className={`w-8 h-8 rounded border-2 transition-transform hover:scale-110 ${color === c ? 'border-gray-800 shadow-lg' : 'border-gray-300'
+                          }`}
                         style={{ backgroundColor: c }}
                         onClick={() => setColor(c)}
                         title={c}
@@ -1537,7 +1508,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                     ))}
                   </div>
                 </div>
-                
+
                 {/* 画笔大小 */}
                 <div className="mb-3">
                   <label className="block text-sm font-medium mb-2">🖌️ 画笔大小: {brushSize}px</label>
@@ -1550,11 +1521,11 @@ const VoxelWorldEditor = ({ apiService }) => {
                     className="w-full"
                   />
                 </div>
-                
+
                 {/* 物理属性设置 */}
                 <div className="bg-gray-50 p-3 rounded mb-4">
                   <h4 className="font-medium mb-2">⚙️ 物理属性</h4>
-                  
+
                   {/* 物体质量 */}
                   <div className="mb-3">
                     <label className="block text-sm font-medium mb-2">⚖️ 质量: {currentMass}kg</label>
@@ -1568,7 +1539,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                       className="w-full"
                     />
                   </div>
-                  
+
                   {/* 弹性系数 */}
                   <div className="mb-2">
                     <label className="block text-sm font-medium mb-2">🏀 弹性: {currentRestitution}</label>
@@ -1587,7 +1558,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* 操作按钮 */}
                 <div className="flex gap-2">
                   <button
@@ -1616,7 +1587,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                   </button>
                 </div>
               </div>
-              
+
               {/* 画布容器 */}
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 relative">
                 <canvas
@@ -1645,9 +1616,8 @@ const VoxelWorldEditor = ({ apiService }) => {
 
         {/* 右侧3D视图 */}
         <div
-          className={`p-4 relative transition-all duration-300 ${
-            viewMode === 'both' ? 'w-1/2' : viewMode === '3d' ? 'w-full' : 'w-0'
-          }`}
+          className={`p-4 relative transition-all duration-300 ${viewMode === 'both' ? 'w-1/2' : viewMode === '3d' ? 'w-full' : 'w-0'
+            }`}
           style={{ display: viewMode === 'editor' ? 'none' : 'block' }}
         >
           <div className="bg-white rounded-lg shadow-lg p-4 h-full flex flex-col">
@@ -1664,15 +1634,14 @@ const VoxelWorldEditor = ({ apiService }) => {
                 )}
                 <button
                   onClick={() => setShowBackpack(!showBackpack)}
-                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                    showBackpack ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-                  }`}
+                  className={`px-3 py-1 rounded text-sm font-medium transition-colors ${showBackpack ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+                    }`}
                 >
                   🎒 背包
                 </button>
               </div>
             </div>
-            
+
             <div className="mb-4 p-3 bg-gray-50 rounded">
               <div className="flex justify-between items-center text-sm">
                 <span>📦 背包物品: <strong>{backpackItems.length}</strong> 个</span>
@@ -1696,7 +1665,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                 🖱️ 左键拖拽物体或旋转视角 | 🎡 滚轮缩放视角 | ✕ 点击物体显示删除按钮
               </div>
             </div>
-            
+
             {/* 3D模式下的快捷工具栏 */}
             {viewMode === '3d' && (
               <div className="mb-4 p-3 bg-blue-50 rounded">
@@ -1731,9 +1700,9 @@ const VoxelWorldEditor = ({ apiService }) => {
                 </div>
               </div>
             )}
-            
+
             {/* 3D渲染容器 */}
-            <div 
+            <div
               ref={sceneContainerRef}
               className="flex-1 border border-gray-300 rounded bg-sky-100 min-h-96 relative"
               style={{ minHeight: '400px' }}
@@ -1744,7 +1713,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                 onDelete={handleDeleteObject}
                 position={deleteButtonPosition}
               />
-              
+
               {/* 空场景提示 */}
               {viewMode === '3d' && backpackItems.length === 0 && sceneObjectCount === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -1752,9 +1721,9 @@ const VoxelWorldEditor = ({ apiService }) => {
                     <div className="text-4xl mb-4">🎨</div>
                     <h3 className="text-lg font-bold mb-2">欢迎来到3D世界！</h3>
                     <p className="text-gray-600 text-sm mb-4">
-                      你可以：<br/>
-                      • 使用上方快捷按钮添加预设物体<br/>
-                      • 点击"去绘图"创建自定义物体<br/>
+                      你可以：<br />
+                      • 使用上方快捷按钮添加预设物体<br />
+                      • 点击"去绘图"创建自定义物体<br />
                       • 拖拽鼠标旋转视角查看场景
                     </p>
                     <div className="text-xs text-gray-500">
@@ -1764,7 +1733,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                 </div>
               )}
             </div>
-            
+
             <div className="mt-4 text-center">
               <div className="text-sm text-gray-600 bg-blue-50 p-2 rounded">
                 💡 <strong>提示:</strong> {viewMode === '3d' ? '使用快捷按钮添加预设物体，或切换到绘图模式创建自定义物体。' : '在绘图区画图后点击"加入背包"，然后从背包中选择物品放入3D空间。'}设置不同的质量和弹性可以创造有趣的物理效果！
@@ -1773,7 +1742,7 @@ const VoxelWorldEditor = ({ apiService }) => {
           </div>
 
           {/* 背包界面 */}
-          <Backpack 
+          <Backpack
             items={backpackItems}
             onPlaceItem={handlePlaceItem}
             isVisible={showBackpack && viewMode === '3d'}
@@ -1788,7 +1757,7 @@ const VoxelWorldEditor = ({ apiService }) => {
             onCancel={handleCancelPlacement}
           />
         </div>
-        
+
       </div>
 
       {/* 新增：渲染AI模态框 */}
