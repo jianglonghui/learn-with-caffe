@@ -1,19 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-// DRACOLoader is a dependency for compressed GLB files, which are common.
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
-/**
- * Loads a GLB file and extracts the first available mesh.
- * @param {File} file - The GLB file object from a file input.
- * @returns {Promise<THREE.Mesh>} - A promise that resolves with the first mesh found.
- */
+// loadMeshFromGlb 函数保持不变...
 async function loadMeshFromGlb(file) {
+  // ... (此部分代码与之前完全相同)
   const loader = new GLTFLoader();
-  
-  // Setup DracoLoader
   const dracoLoader = new DRACOLoader();
-  // You must host these decoder files on your server
   dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
   loader.setDRACOLoader(dracoLoader);
 
@@ -24,7 +17,6 @@ async function loadMeshFromGlb(file) {
         let mesh = null;
         gltf.scene.traverse((child) => {
           if (child.isMesh && !mesh) {
-            // Found the first mesh, let's use it.
             mesh = child;
           }
         });
@@ -33,9 +25,7 @@ async function loadMeshFromGlb(file) {
         } else {
           reject(new Error('No mesh found in the GLB file.'));
         }
-      }, (error) => {
-        reject(new Error(`Failed to parse GLB file: ${error.message}`));
-      });
+      }, (error) => reject(new Error(`Failed to parse GLB file: ${error.message}`)));
     };
     reader.onerror = (error) => reject(error);
     reader.readAsArrayBuffer(file);
@@ -43,92 +33,78 @@ async function loadMeshFromGlb(file) {
 }
 
 /**
- * Voxelizes a THREE.Mesh object.
- * This function samples points within the mesh's bounding box and uses raycasting
- * to determine if a point is "inside" the mesh.
- * @param {THREE.Mesh} mesh - The mesh to voxelize.
- * @param {number} resolution - The number of voxels along the longest axis. Higher is more detailed.
- * @returns {Array<Object>} - An array of voxel data [{ x, y, z, color }].
+ * [高效版] 使用表面采样和扫描线填充算法来体素化网格。
+ * @param {THREE.Mesh} mesh - 要体素化的网格。
+ * @param {number} resolution - 沿最长轴的体素数量。
+ * @returns {Array<Object>} - 体素数据数组 [{ x, y, z, color }]。
  */
-function voxelizeMesh(mesh, resolution = 20) {
-  mesh.geometry.computeBoundingBox();
-  const box = mesh.geometry.boundingBox;
-  const size = box.getSize(new THREE.Vector3());
+function voxelizeMesh(mesh, resolution = 30) {
+  // 确保应用了世界变换，并将几何体居中
+  mesh.updateWorldMatrix(true, true);
+  const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+  geometry.center();
+  geometry.computeBoundingBox();
 
+  const box = geometry.boundingBox;
+  const size = box.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   const voxelSize = maxDim / resolution;
+
+  const surfaceVoxels = new Set();
+  const positionAttribute = geometry.getAttribute('position');
   
-  const voxels = [];
-  const raycaster = new THREE.Raycaster();
-  const direction = new THREE.Vector3(1, 0, 0); // Cast rays along the positive X-axis
+  console.log(`[Fast Voxelizer] Step 1: Generating surface voxels...`);
+  // 步骤1: 体素化网格表面 (只在顶点处放置体素)
+  // 这是一个快速获得物体外壳的方法
+  for (let i = 0; i < positionAttribute.count; i++) {
+    const pt = new THREE.Vector3().fromBufferAttribute(positionAttribute, i);
+    const x = Math.round(pt.x / voxelSize);
+    const y = Math.round(pt.y / voxelSize);
+    const z = Math.round(pt.z / voxelSize);
+    surfaceVoxels.add(`${x},${y},${z}`);
+  }
 
-  console.log(`Starting voxelization with resolution ${resolution} (voxel size: ${voxelSize})...`);
+  const allVoxels = new Set(surfaceVoxels);
+  const color = mesh.material.isMeshStandardMaterial ? mesh.material.color : new THREE.Color(0xcccccc);
+  
+  // 创建一个按Y和Z分组的映射，以便于扫描
+  const yzMap = {};
+  surfaceVoxels.forEach(key => {
+    const [x, y, z] = key.split(',').map(Number);
+    const yzKey = `${y},${z}`;
+    if (!yzMap[yzKey]) {
+      yzMap[yzKey] = [];
+    }
+    yzMap[yzKey].push(x);
+  });
 
-  for (let i = 0; i < resolution; i++) {
-    for (let j = 0; j < resolution; j++) {
-      for (let k = 0; k < resolution; k++) {
-        
-        // Calculate the center of the potential voxel
-        const point = new THREE.Vector3(
-          box.min.x + (i + 0.5) * voxelSize,
-          box.min.y + (j + 0.5) * voxelSize,
-          box.min.z + (k + 0.5) * voxelSize
-        );
+  console.log(`[Fast Voxelizer] Step 2: Filling interior using scanline algorithm...`);
+  // 步骤2: 使用扫描线算法填充内部
+  for (const yzKey in yzMap) {
+    const xCoords = yzMap[yzKey];
+    if (xCoords.length < 2) continue;
 
-        // Check if the point is inside the mesh by casting a ray
-        raycaster.set(point, direction);
-        const intersects = raycaster.intersectObject(mesh, false);
+    const minX = Math.min(...xCoords);
+    const maxX = Math.max(...xCoords);
 
-        // If the number of intersections is odd, the point is inside
-        if (intersects.length % 2 === 1) {
-          
-          // For color, we'll just use the material's base color for simplicity.
-          // A more advanced version could sample a texture.
-          const color = mesh.material.isMeshStandardMaterial ? mesh.material.color : new THREE.Color(0xffffff);
-
-          voxels.push({
-            x: Math.round(point.x / voxelSize),
-            y: Math.round(point.y / voxelSize),
-            z: Math.round(point.z / voxelSize),
-            color: color
-          });
-        }
-      }
+    for (let x = minX + 1; x < maxX; x++) {
+      allVoxels.add(`${x},${yzKey}`);
     }
   }
 
-  // Center the resulting voxels around the origin
-  if (voxels.length > 0) {
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
-    voxels.forEach(v => {
-      minX = Math.min(minX, v.x);
-      minY = Math.min(minY, v.y);
-      minZ = Math.min(minZ, v.z);
-    });
-    const centerX = Math.round(minX + (Math.max(...voxels.map(v=>v.x)) - minX) / 2);
-    const centerY = Math.round(minY + (Math.max(...voxels.map(v=>v.y)) - minY) / 2);
-    const centerZ = Math.round(minZ + (Math.max(...voxels.map(v=>v.z)) - minZ) / 2);
-    
-    voxels.forEach(v => {
-      v.x -= centerX;
-      v.y -= centerY;
-      v.z -= centerZ;
-    });
-  }
+  // 将Set转换为最终的数组格式
+  const finalVoxels = Array.from(allVoxels).map(key => {
+    const [x, y, z] = key.split(',').map(Number);
+    return { x, y, z, color };
+  });
 
-  console.log(`Voxelization complete. Generated ${voxels.length} voxels.`);
-  return voxels;
+  console.log(`[Fast Voxelizer] Voxelization complete. Generated ${finalVoxels.length} voxels.`);
+  return finalVoxels;
 }
 
-/**
- * Main function: Loads a GLB file and processes it into voxel data.
- * @param {File} file - The GLB file from an input.
- * @param {Object} options - Containing options like 'resolution'.
- * @returns {Promise<Array<Object>>} A promise that resolves with the voxel array.
- */
+// 主函数 processGlbToVoxels 保持不变，它会调用新的 voxelizeMesh
 export async function processGlbToVoxels(file, options = {}) {
-  const resolution = options.resolution || 25; // Default resolution
-
+  const resolution = options.resolution || 30; // 可以适当提高默认分辨率了
   if (!file || !file.name.toLowerCase().endsWith('.glb')) {
     throw new Error('Please select a valid .glb file.');
   }
@@ -139,6 +115,6 @@ export async function processGlbToVoxels(file, options = {}) {
     return voxels;
   } catch (error) {
     console.error('[GLB Processor] Error:', error);
-    throw error; // Re-throw to be caught by the UI layer
+    throw error;
   }
-} 
+}
