@@ -1,13 +1,32 @@
-import React, { createContext, useContext, useReducer, useMemo, memo } from 'react';
-import { BookOpen, Brain, CheckCircle, AlertCircle, Loader2, RotateCcw, HelpCircle, Sparkles, Target, TrendingUp, FileText, Play, ChevronDown, ChevronUp } from 'lucide-react';
-import VoxelWorldEditor from './world_simulator';
-import { testAiGenerator } from './ai-generator.test';
+import React, { createContext, useContext, useReducer, useMemo, memo, Suspense, lazy } from 'react';
+import { evaluateExpression } from './utils/mathEvaluator';
+// 优化图标导入 - 使用树摇优化的导入方式
+import {
+  BookOpen,
+  Brain,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  RotateCcw,
+  HelpCircle,
+  Sparkles,
+  Target,
+  TrendingUp,
+  FileText,
+  Play,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+// 懒加载大型组件
+const VoxelWorldEditor = lazy(() => import('./world_simulator.jsx'));
+// 移除测试导入以减少 bundle 大小
+// import { testAiGenerator } from './ai-generator.test';
 
 // ==================== 本地存储管理 ====================
 const StorageManager = {
   TOPIC_STATS_KEY: 'learning_topic_stats',
   LEARNING_HISTORY_KEY: 'learning_history',
-  
+
   // 获取主题统计数据
   getTopicStats: () => {
     try {
@@ -18,7 +37,7 @@ const StorageManager = {
       return {};
     }
   },
-  
+
   // 保存主题统计数据
   saveTopicStats: (stats) => {
     try {
@@ -27,25 +46,25 @@ const StorageManager = {
       console.error('保存主题统计失败:', error);
     }
   },
-  
+
   // 记录主题使用
   recordTopicUsage: (topic) => {
     if (!topic || typeof topic !== 'string') return;
-    
+
     const cleanTopic = SecurityUtils.sanitizeInput(topic);
     if (!cleanTopic) return;
-    
+
     const stats = StorageManager.getTopicStats();
     stats[cleanTopic] = (stats[cleanTopic] || 0) + 1;
-    
+
     // 记录使用时间
     if (!stats._metadata) stats._metadata = {};
     if (!stats._metadata.lastUsed) stats._metadata.lastUsed = {};
     stats._metadata.lastUsed[cleanTopic] = new Date().toISOString();
-    
+
     StorageManager.saveTopicStats(stats);
   },
-  
+
   // 获取热门主题排行榜
   getPopularTopics: (limit = 10) => {
     const stats = StorageManager.getTopicStats();
@@ -58,10 +77,10 @@ const StorageManager = {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, limit);
-    
+
     return topics;
   },
-  
+
   // 清除统计数据
   clearTopicStats: () => {
     try {
@@ -72,7 +91,7 @@ const StorageManager = {
   },
 
   // ==================== 学习历史管理 ====================
-  
+
   // 获取学习历史
   getLearningHistory: () => {
     try {
@@ -83,7 +102,7 @@ const StorageManager = {
       return [];
     }
   },
-  
+
   // 保存学习历史
   saveLearningHistory: (history) => {
     try {
@@ -92,33 +111,33 @@ const StorageManager = {
       console.error('保存学习历史失败:', error);
     }
   },
-  
+
   // 生成唯一的学习记录ID
   generateLearningId: () => {
     return `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   },
-  
+
   // 获取主题的显示名称（处理重复主题的序号）
   getTopicDisplayName: (baseTopic, history) => {
-    const existingTopics = history.filter(item => 
+    const existingTopics = history.filter(item =>
       item.originalTopic === baseTopic || item.displayName.startsWith(baseTopic)
     );
-    
+
     if (existingTopics.length === 0) {
       return baseTopic;
     }
-    
+
     const nextNumber = existingTopics.length + 1;
     return `${baseTopic} (${nextNumber})`;
   },
-  
+
   // 添加学习记录
   addLearningRecord: (data) => {
     console.log('创建学习记录:', data);
     const history = StorageManager.getLearningHistory();
     const learningId = StorageManager.generateLearningId();
     const displayName = StorageManager.getTopicDisplayName(data.topic, history);
-    
+
     const record = {
       id: learningId,
       originalTopic: data.topic,
@@ -135,45 +154,45 @@ const StorageManager = {
         score: data.score || 0
       }
     };
-    
+
     history.unshift(record); // 最新的记录在前面
     StorageManager.saveLearningHistory(history);
     console.log('学习记录已创建:', learningId, record);
     return learningId;
   },
-  
+
   // 更新学习记录
   updateLearningRecord: (learningId, updates) => {
     console.log('更新学习记录:', learningId, updates);
     const history = StorageManager.getLearningHistory();
     const recordIndex = history.findIndex(record => record.id === learningId);
-    
+
     if (recordIndex === -1) {
       console.error('学习记录不存在:', learningId);
       return false;
     }
-    
+
     history[recordIndex] = {
       ...history[recordIndex],
       ...updates,
       updatedAt: new Date().toISOString()
     };
-    
+
     StorageManager.saveLearningHistory(history);
     console.log('学习记录已更新:', history[recordIndex]);
     return true;
   },
-  
+
   // 更新主题显示名称
   updateTopicDisplayName: (learningId, newDisplayName) => {
     const cleanName = SecurityUtils.sanitizeInput(newDisplayName);
     if (!cleanName) return false;
-    
+
     return StorageManager.updateLearningRecord(learningId, {
       displayName: cleanName
     });
   },
-  
+
   // 删除学习记录
   deleteLearningRecord: (learningId) => {
     const history = StorageManager.getLearningHistory();
@@ -181,13 +200,13 @@ const StorageManager = {
     StorageManager.saveLearningHistory(filteredHistory);
     return true;
   },
-  
+
   // 获取特定学习记录
   getLearningRecord: (learningId) => {
     const history = StorageManager.getLearningHistory();
     return history.find(record => record.id === learningId) || null;
   },
-  
+
   // 清除所有学习历史
   clearLearningHistory: () => {
     try {
@@ -220,12 +239,12 @@ const SecurityUtils = {
 // ==================== API服务层 ====================
 class APIService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    this.baseURL = import.meta.env.REACT_APP_API_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
     this.maxRetries = 3;
     this.timeout = 30000;
 
     // 验证API key配置
-    if (!process.env.REACT_APP_GLM_API_KEY) {
+    if (!import.meta.env.REACT_APP_GLM_API_KEY) {
       console.error('⚠️ 警告: REACT_APP_GLM_API_KEY 环境变量未配置！');
       console.error('请创建 .env.local 文件并配置 REACT_APP_GLM_API_KEY');
       throw new Error('API key未配置，请检查环境变量设置');
@@ -241,12 +260,12 @@ class APIService {
 
   async request(prompt, options = {}) {
     const sanitizedPrompt = SecurityUtils.sanitizeInput(prompt);
-    
+
     const requestBody = {
       model: options.model || "glm-4.5",
       max_tokens: options.maxTokens || 2000,
       messages: [{ role: "user", content: sanitizedPrompt }],
-      thinking: {type: "disabled"}
+      thinking: { type: "disabled" }
     };
 
     let lastError;
@@ -259,7 +278,7 @@ class APIService {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.REACT_APP_GLM_API_KEY}`
+            "Authorization": `Bearer ${import.meta.env.REACT_APP_GLM_API_KEY}`
           },
           body: JSON.stringify(requestBody),
           signal: controller.signal
@@ -272,7 +291,7 @@ class APIService {
         }
 
         const data = await response.json();
-        
+
         if (!SecurityUtils.validateApiResponse(data, ['choices'])) {
           throw new Error('Invalid API response format');
         }
@@ -323,10 +342,10 @@ class APIService {
       let result = '';
       let inString = false;
       let i = 0;
-      
+
       while (i < jsonString.length) {
         const char = jsonString[i];
-        
+
         if (char === '"') {
           if (!inString) {
             inString = true;
@@ -334,7 +353,7 @@ class APIService {
           } else {
             let j = i + 1;
             while (j < jsonString.length && /\s/.test(jsonString[j])) j++;
-            
+
             if (j >= jsonString.length || /[,:}\]]/.test(jsonString[j])) {
               inString = false;
               result += char;
@@ -347,7 +366,7 @@ class APIService {
         }
         i++;
       }
-      
+
       return result;
     } catch {
       return jsonString;
@@ -446,7 +465,7 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
 
   async challengeQuestionAnswer(question) {
     let prompt;
-    
+
     if (question.type === 'fill_blank') {
       // 填空题的质疑提示
       prompt = `请重新审视以下填空题，质疑当前答案是否真正正确：
@@ -487,7 +506,7 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
 
 DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
     }
-    
+
     return this.request(prompt, { maxTokens: 1500 });
   }
 
@@ -713,8 +732,8 @@ function appReducer(state, action) {
     case 'SET_STORY_CONTENT':
       return { ...state, storyContent: action.content };
     case 'SET_QUESTIONS':
-      return { 
-        ...state, 
+      return {
+        ...state,
         questions: action.questions,
         currentQuestion: 0,
         answers: {},
@@ -803,36 +822,36 @@ const useAPI = () => {
   };
 
   return {
-    confirmTopic: (topic) => 
+    confirmTopic: (topic) =>
       executeWithLoading('confirmTopic', () => apiService.confirmTopic(topic)),
-    
+
     generateStory: (topic) =>
       executeWithLoading('generateStory', () => apiService.generateStory(topic)),
-    
+
     generateQuestions: (topic) =>
       executeWithLoading('generateQuestions', () => apiService.generateQuestions(topic)),
-    
+
     generateAssessment: (data) =>
       executeWithLoading('generateAssessment', () => apiService.generateAssessment(data)),
-    
+
     generateOutline: (assessment, topic) =>
       executeWithLoading('generateOutline', () => apiService.generateOutline(assessment, topic)),
-    
+
     generateDetailedExplanation: (question) =>
       executeWithLoading(`explanation_${question.id || 'quiz'}`, () => apiService.generateDetailedExplanation(question)),
-    
+
     challengeQuestionAnswer: (question) =>
       executeWithLoading(`challenge_${question.id || 'quiz'}`, () => apiService.challengeQuestionAnswer(question)),
-    
+
     generateDeepLearning: (outlineItem) =>
       executeWithLoading(`generateDeepLearning_${outlineItem.id}`, () => apiService.generateDeepLearning(outlineItem)),
-    
+
     explainConcept: (term, context = '') =>
       executeWithLoading(`explainConcept_${term}`, () => apiService.explainConcept(term, context)),
-    
+
     askSmartBoard: (question, context = '') =>
       executeWithLoading(`smartBoard_${Date.now()}`, () => apiService.askSmartBoard(question, context)),
-    
+
     generateWorkshopSimulator: (concepts, knowledgePoints, topic) =>
       executeWithLoading(`generateWorkshopSimulator_${Date.now()}`, () => apiService.generateWorkshopSimulator(concepts, knowledgePoints, topic))
   };
@@ -912,13 +931,13 @@ const TopicRankingBoard = memo(({ onTopicSelect }) => {
 
   const formatLastUsed = (dateString) => {
     if (!dateString) return '未知';
-    
+
     try {
       const date = new Date(dateString);
       const now = new Date();
       const diffMs = now - date;
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
+
       if (diffDays === 0) return '今天';
       if (diffDays === 1) return '昨天';
       if (diffDays < 7) return `${diffDays}天前`;
@@ -990,12 +1009,11 @@ const TopicRankingBoard = memo(({ onTopicSelect }) => {
             onClick={() => onTopicSelect?.(item.topic)}
           >
             <div className="flex items-center flex-1 min-w-0">
-              <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-3 ${
-                index === 0 ? 'bg-yellow-400 text-yellow-900' :
+              <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-3 ${index === 0 ? 'bg-yellow-400 text-yellow-900' :
                 index === 1 ? 'bg-gray-300 text-gray-700' :
-                index === 2 ? 'bg-orange-400 text-orange-900' :
-                'bg-blue-100 text-blue-700'
-              }`}>
+                  index === 2 ? 'bg-orange-400 text-orange-900' :
+                    'bg-blue-100 text-blue-700'
+                }`}>
                 {index + 1}
               </span>
               <div className="flex-1 min-w-0">
@@ -1051,9 +1069,9 @@ const PersonalCenter = memo(() => {
   const handleSaveEdit = (recordId) => {
     if (editingName.trim()) {
       StorageManager.updateTopicDisplayName(recordId, editingName.trim());
-      setLearningHistory(prev => 
-        prev.map(record => 
-          record.id === recordId 
+      setLearningHistory(prev =>
+        prev.map(record =>
+          record.id === recordId
             ? { ...record, displayName: editingName.trim() }
             : record
         )
@@ -1079,7 +1097,7 @@ const PersonalCenter = memo(() => {
     // 恢复评估结果查看状态
     dispatch({ type: 'SET_CONFIRMED_TOPIC', topic: record.originalTopic });
     dispatch({ type: 'SET_CURRENT_LEARNING_ID', learningId: record.id });
-    
+
     if (record.testResults) {
       dispatch({ type: 'SET_QUESTIONS', questions: record.testResults.questions || [] });
       // 恢复答案
@@ -1093,7 +1111,7 @@ const PersonalCenter = memo(() => {
         dispatch({ type: 'SET_ANSWER', questionId, answer: answers[questionId] });
       });
     }
-    
+
     dispatch({ type: 'SET_STEP', step: 'results' });
     dispatch({ type: 'SET_SHOW_PERSONAL_CENTER', show: false });
   };
@@ -1102,7 +1120,7 @@ const PersonalCenter = memo(() => {
     // 恢复学习状态
     dispatch({ type: 'SET_CONFIRMED_TOPIC', topic: record.originalTopic });
     dispatch({ type: 'SET_CURRENT_LEARNING_ID', learningId: record.id });
-    
+
     if (record.stage === 'topic_confirmed') {
       dispatch({ type: 'SET_STEP', step: 'story' });
     } else if (record.stage === 'assessment_completed') {
@@ -1138,7 +1156,7 @@ const PersonalCenter = memo(() => {
       }
       // 注意：学习模块内容会在OutlineDisplay中根据learningRecord自动恢复
     }
-    
+
     dispatch({ type: 'SET_SHOW_PERSONAL_CENTER', show: false });
   };
 
@@ -1247,7 +1265,7 @@ const PersonalCenter = memo(() => {
           {/* 学习历史列表 */}
           <div>
             <h2 className="text-2xl font-semibold text-gray-800 mb-6">学习历史</h2>
-            
+
             {learningHistory.length === 0 ? (
               <div className="text-center py-12">
                 <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -1302,7 +1320,7 @@ const PersonalCenter = memo(() => {
                             {getStageText(record.stage)}
                           </span>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-4">
                           <div>
                             <span className="font-medium">创建时间:</span> {formatDate(record.createdAt)}
@@ -1320,7 +1338,7 @@ const PersonalCenter = memo(() => {
                         {record.metadata?.totalQuestions > 0 && (
                           <div className="bg-gray-50 rounded-lg p-3 mb-4">
                             <p className="text-sm text-gray-700">
-                              <span className="font-medium">测试结果:</span> 
+                              <span className="font-medium">测试结果:</span>
                               答对 {record.metadata.correctAnswers} 题，共 {record.metadata.totalQuestions} 题
                               ({record.metadata.score}%)
                             </p>
@@ -1384,23 +1402,23 @@ const TopicSelector = memo(() => {
 
     try {
       const result = await api.confirmTopic(topic.trim());
-      
+
       if (result.needsConfirmation && result.options) {
         dispatch({ type: 'SET_TOPIC_OPTIONS', options: result.options });
         dispatch({ type: 'SET_STEP', step: 'confirm' });
       } else {
         const confirmedTopic = result.confirmedTopic || topic;
         dispatch({ type: 'SET_CONFIRMED_TOPIC', topic: confirmedTopic });
-        
+
         // 创建学习记录
         const learningId = StorageManager.addLearningRecord({
           topic: confirmedTopic,
           stage: 'topic_confirmed'
         });
         dispatch({ type: 'SET_CURRENT_LEARNING_ID', learningId });
-        
+
         dispatch({ type: 'SET_STEP', step: 'story' });
-        
+
         const storyResult = await api.generateStory(confirmedTopic);
         dispatch({ type: 'SET_STORY_CONTENT', content: storyResult });
       }
@@ -1449,11 +1467,10 @@ const TopicSelector = memo(() => {
               <button
                 key={index}
                 onClick={() => dispatch({ type: 'SET_TOPIC', topic })}
-                className={`p-3 rounded-lg border-2 transition-all duration-200 text-sm font-medium ${
-                  state.selectedTopic === topic
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                }`}
+                className={`p-3 rounded-lg border-2 transition-all duration-200 text-sm font-medium ${state.selectedTopic === topic
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                  }`}
               >
                 {topic}
               </button>
@@ -1496,7 +1513,7 @@ const TopicSelector = memo(() => {
 
           {state.errors.confirmTopic && (
             <div className="mt-4">
-              <ErrorMessage 
+              <ErrorMessage
                 message={state.errors.confirmTopic}
                 onRetry={handleStartQuiz}
               />
@@ -1514,16 +1531,16 @@ const TopicConfirmation = memo(() => {
 
   const handleTopicConfirm = async (option) => {
     dispatch({ type: 'SET_CONFIRMED_TOPIC', topic: option.title });
-    
+
     // 创建学习记录
     const learningId = StorageManager.addLearningRecord({
       topic: option.title,
       stage: 'topic_confirmed'
     });
     dispatch({ type: 'SET_CURRENT_LEARNING_ID', learningId });
-    
+
     dispatch({ type: 'SET_STEP', step: 'story' });
-    
+
     try {
       const result = await api.generateStory(option.title);
       dispatch({ type: 'SET_STORY_CONTENT', content: result });
@@ -1582,7 +1599,7 @@ const StoryDisplay = memo(() => {
 
   const handleStartLearning = async () => {
     dispatch({ type: 'SET_STEP', step: 'generating' });
-    
+
     try {
       const result = await api.generateQuestions(state.confirmedTopic);
       if (result.questions && Array.isArray(result.questions)) {
@@ -1613,7 +1630,7 @@ const StoryDisplay = memo(() => {
               <p className="text-gray-800 leading-relaxed text-lg mb-6">
                 {state.storyContent.story}
               </p>
-              
+
               {state.storyContent.hookQuestion && (
                 <div className="bg-white bg-opacity-70 rounded-lg p-4 border-l-4 border-purple-500">
                   <p className="text-purple-800 font-medium text-lg">
@@ -1646,7 +1663,7 @@ const StoryDisplay = memo(() => {
 
           {state.errors.generateQuestions && (
             <div className="mt-4">
-              <ErrorMessage 
+              <ErrorMessage
                 message={state.errors.generateQuestions}
                 onRetry={handleStartLearning}
               />
@@ -1669,7 +1686,7 @@ const QuizInterface = memo(() => {
   const handleAnswer = (questionId, selectedOption, customAnswer = '') => {
     const currentTime = Date.now();
     const timeSpent = currentTime - questionStartTime;
-    
+
     dispatch({
       type: 'SET_ANSWER',
       questionId,
@@ -1759,11 +1776,10 @@ const QuizInterface = memo(() => {
                 <button
                   key={index}
                   onClick={() => handleAnswer(currentQ.id, index)}
-                  className={`w-full p-4 text-left rounded-lg border-2 transition-all duration-200 ${
-                    currentAnswer?.selectedOption === index
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                  }`}
+                  className={`w-full p-4 text-left rounded-lg border-2 transition-all duration-200 ${currentAnswer?.selectedOption === index
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                    }`}
                 >
                   <span className="font-medium mr-3">{String.fromCharCode(65 + index)}.</span>
                   {option}
@@ -1794,7 +1810,7 @@ const QuizInterface = memo(() => {
             >
               上一题
             </button>
-            
+
             <button
               onClick={nextQuestion}
               disabled={currentAnswer?.selectedOption === undefined}
@@ -1829,7 +1845,7 @@ const ResultsDisplay = memo(() => {
     if (state.currentLearningId && state.questions.length > 0) {
       const score = calculateScore();
       const percentage = Math.round((score.correct / score.total) * 100);
-      
+
       StorageManager.updateLearningRecord(state.currentLearningId, {
         stage: 'assessment_completed',
         testResults: {
@@ -1844,7 +1860,7 @@ const ResultsDisplay = memo(() => {
         }
       });
     }
-  }, [state.currentLearningId, state.questions, state.answers]);
+  }, [state.currentLearningId, state.questions, state.answers, state.answerTimes, calculateScore]);
 
   const handleDetailedExplanation = async (question) => {
     try {
@@ -1902,12 +1918,12 @@ const ResultsDisplay = memo(() => {
 
           <div className="space-y-6">
             <h2 className="text-2xl font-semibold text-gray-800">答题详情</h2>
-            
+
             {state.questions.map((question, index) => {
               const answer = state.answers[question.id];
               const isCorrect = answer?.selectedOption === question.correctAnswer;
               const questionDetail = state.questionDetails[question.id];
-              
+
               return (
                 <div key={question.id} className="border border-gray-200 rounded-lg p-6">
                   <div className="flex items-start mb-4">
@@ -1916,18 +1932,17 @@ const ResultsDisplay = memo(() => {
                     </span>
                     <div className="flex-1">
                       <p className="text-gray-800 mb-3">{question.question}</p>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                         {question.options.map((option, optIndex) => (
                           <div
                             key={optIndex}
-                            className={`p-2 rounded text-sm ${
-                              optIndex === question.correctAnswer
-                                ? 'bg-green-100 border border-green-300 text-green-800'
-                                : optIndex === answer?.selectedOption && !isCorrect
+                            className={`p-2 rounded text-sm ${optIndex === question.correctAnswer
+                              ? 'bg-green-100 border border-green-300 text-green-800'
+                              : optIndex === answer?.selectedOption && !isCorrect
                                 ? 'bg-red-100 border border-red-300 text-red-800'
                                 : 'bg-gray-50 border border-gray-200'
-                            }`}
+                              }`}
                           >
                             <span className="font-medium mr-2">
                               {String.fromCharCode(65 + optIndex)}.
@@ -1988,7 +2003,7 @@ const ResultsDisplay = memo(() => {
                               <strong>详细说明:</strong>
                               <p>{questionDetail.detailedExplanation.detailedExplanation}</p>
                             </div>
-                            
+
                             <div>
                               <strong>错误选项分析:</strong>
                               <ul className="list-disc list-inside ml-4">
@@ -1997,12 +2012,12 @@ const ResultsDisplay = memo(() => {
                                 ))}
                               </ul>
                             </div>
-                            
+
                             <div>
                               <strong>知识扩展:</strong>
                               <p>{questionDetail.detailedExplanation.knowledgeExtension}</p>
                             </div>
-                            
+
                             <div>
                               <strong>实际应用:</strong>
                               <p>{questionDetail.detailedExplanation.practicalApplication}</p>
@@ -2019,45 +2034,43 @@ const ResultsDisplay = memo(() => {
                               <strong>重新分析:</strong>
                               <p>{questionDetail.challengeResult.reanalysis}</p>
                             </div>
-                            
+
                             <div>
                               <strong>AI重新思考后的答案:</strong>
-                              <p className={`font-medium ${
-                                questionDetail.challengeResult.finalAnswer === question.correctAnswer 
-                                  ? 'text-green-600' 
-                                  : 'text-red-600'
-                              }`}>
+                              <p className={`font-medium ${questionDetail.challengeResult.finalAnswer === question.correctAnswer
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                                }`}>
                                 {String.fromCharCode(65 + questionDetail.challengeResult.finalAnswer)}. {question.options[questionDetail.challengeResult.finalAnswer]}
-                                {questionDetail.challengeResult.finalAnswer === question.correctAnswer 
-                                  ? ' (与原答案一致)' 
+                                {questionDetail.challengeResult.finalAnswer === question.correctAnswer
+                                  ? ' (与原答案一致)'
                                   : ' (与原答案不同!)'}
                               </p>
                             </div>
-                            
+
                             <div>
                               <strong>置信度:</strong>
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                questionDetail.challengeResult.confidence === 'high' ? 'bg-green-100 text-green-700' :
+                              <span className={`px-2 py-1 rounded text-xs ${questionDetail.challengeResult.confidence === 'high' ? 'bg-green-100 text-green-700' :
                                 questionDetail.challengeResult.confidence === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-red-100 text-red-700'
-                              }`}>
+                                  'bg-red-100 text-red-700'
+                                }`}>
                                 {questionDetail.challengeResult.confidence === 'high' ? '高' :
-                                 questionDetail.challengeResult.confidence === 'medium' ? '中' : '低'}
+                                  questionDetail.challengeResult.confidence === 'medium' ? '中' : '低'}
                               </span>
                             </div>
-                            
+
                             <div>
                               <strong>推理过程:</strong>
                               <p>{questionDetail.challengeResult.reasoning}</p>
                             </div>
-                            
+
                             {questionDetail.challengeResult.controversies && (
                               <div>
                                 <strong>争议点:</strong>
                                 <p>{questionDetail.challengeResult.controversies}</p>
                               </div>
                             )}
-                            
+
                             {questionDetail.challengeResult.alternativeViews && (
                               <div>
                                 <strong>其他观点:</strong>
@@ -2071,13 +2084,13 @@ const ResultsDisplay = memo(() => {
                       {(state.errors[`explanation_${question.id}`] || state.errors[`challenge_${question.id}`]) && (
                         <div className="mb-3">
                           {state.errors[`explanation_${question.id}`] && (
-                            <ErrorMessage 
+                            <ErrorMessage
                               message={state.errors[`explanation_${question.id}`]}
                               onRetry={() => handleDetailedExplanation(question)}
                             />
                           )}
                           {state.errors[`challenge_${question.id}`] && (
-                            <ErrorMessage 
+                            <ErrorMessage
                               message={state.errors[`challenge_${question.id}`]}
                               onRetry={() => handleChallengeAnswer(question)}
                             />
@@ -2105,7 +2118,7 @@ const ResultsDisplay = memo(() => {
                 const score = calculateScore();
                 const avgTime = Object.values(state.answerTimes).reduce((sum, time) => sum + time, 0) / Object.values(state.answerTimes).length;
                 const customAnswersQuality = Object.values(state.answers).filter(a => a.customAnswer && a.customAnswer.trim().length > 10).length;
-                
+
                 const performanceData = {
                   topic: state.confirmedTopic,
                   correctRate: score.correct / score.total,
@@ -2208,16 +2221,16 @@ const AssessmentDisplay = memo(() => {
               <div>
                 <h3 className="font-semibold text-gray-700 mb-2">学习水平</h3>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${getLevelColor(state.learningAssessment.level)}`}>
-                  {state.learningAssessment.level === 'beginner' ? '初学者' : 
-                   state.learningAssessment.level === 'intermediate' ? '中级' : '高级'}
+                  {state.learningAssessment.level === 'beginner' ? '初学者' :
+                    state.learningAssessment.level === 'intermediate' ? '中级' : '高级'}
                 </span>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-gray-700 mb-2">学习风格</h3>
                 <p className="text-gray-600">
                   {state.learningAssessment.learningStyle === 'quick-learner' ? '快速学习型' :
-                   state.learningAssessment.learningStyle === 'thorough-learner' ? '深度学习型' : '分析型学习'}
+                    state.learningAssessment.learningStyle === 'thorough-learner' ? '深度学习型' : '分析型学习'}
                 </p>
               </div>
             </div>
@@ -2234,7 +2247,7 @@ const AssessmentDisplay = memo(() => {
                   ))}
                 </ul>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-gray-700 mb-2 text-orange-600">改进建议</h3>
                 <ul className="text-sm text-gray-600 space-y-1">
@@ -2323,7 +2336,7 @@ const OutlineDisplay = memo(() => {
 
   const handleOutlineItemSelect = async (item) => {
     dispatch({ type: 'SET_SELECTED_OUTLINE_ITEM', item });
-    
+
     // 检查是否已有生成的内容
     const existingContent = learningRecord?.learningModules?.[item.id];
     if (existingContent) {
@@ -2332,7 +2345,7 @@ const OutlineDisplay = memo(() => {
       dispatch({ type: 'SET_STEP', step: 'deep-learning' });
       return;
     }
-    
+
     try {
       const result = await api.generateDeepLearning(item);
       dispatch({ type: 'SET_DEEP_LEARNING_CONTENT', content: result });
@@ -2346,11 +2359,11 @@ const OutlineDisplay = memo(() => {
   const getModuleStatus = (item) => {
     const hasContent = learningRecord?.learningModules?.[item.id];
     if (!hasContent) return 'not_started';
-    
+
     // 检查是否完成了测试
     const quiz = hasContent.quiz;
     const quizAnswers = hasContent.quizAnswers; // 需要保存用户的答题记录
-    
+
     if (quiz && quiz.length > 0) {
       // 检查是否所有题目都已完成
       if (quizAnswers && Object.keys(quizAnswers).length === quiz.length) {
@@ -2374,7 +2387,7 @@ const OutlineDisplay = memo(() => {
   const getButtonProps = (item) => {
     const status = getModuleStatus(item);
     const isLoading = state.loadingStates[`generateDeepLearning_${item.id}`];
-    
+
     if (isLoading) {
       return {
         text: '生成中...',
@@ -2383,7 +2396,7 @@ const OutlineDisplay = memo(() => {
         disabled: true
       };
     }
-    
+
     switch (status) {
       case 'completed':
         return {
@@ -2449,7 +2462,7 @@ const OutlineDisplay = memo(() => {
 
           <div className="space-y-4">
             <h2 className="text-2xl font-semibold text-gray-800 mb-6">学习模块</h2>
-            
+
             {state.learningOutline.outline.map((item, index) => (
               <div key={item.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-4">
@@ -2461,9 +2474,9 @@ const OutlineDisplay = memo(() => {
                         {item.difficulty === 'beginner' ? '初级' : item.difficulty === 'intermediate' ? '中级' : '高级'}
                       </span>
                     </div>
-                    
+
                     <p className="text-gray-600 mb-3">{item.content}</p>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
                         <h4 className="font-medium text-gray-700 mb-1">学习目标</h4>
@@ -2476,7 +2489,7 @@ const OutlineDisplay = memo(() => {
                           ))}
                         </ul>
                       </div>
-                      
+
                       <div>
                         <h4 className="font-medium text-gray-700 mb-1">预计时间</h4>
                         <p className="text-sm text-gray-600">{item.estimatedTime}</p>
@@ -2489,7 +2502,7 @@ const OutlineDisplay = memo(() => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <button
                     onClick={() => handleOutlineItemSelect(item)}
                     disabled={getButtonProps(item).disabled}
@@ -2499,10 +2512,10 @@ const OutlineDisplay = memo(() => {
                     {getButtonProps(item).text}
                   </button>
                 </div>
-                
+
                 {state.errors[`generateDeepLearning_${item.id}`] && (
                   <div className="mt-3">
-                    <ErrorMessage 
+                    <ErrorMessage
                       message={state.errors[`generateDeepLearning_${item.id}`]}
                     />
                   </div>
@@ -2556,7 +2569,7 @@ const ConceptsModule = memo(({ concepts, onDragStart, savedConceptExplanations =
       savedKeys: Object.keys(savedConceptExplanations),
       hasSavedExplanations: Object.keys(savedConceptExplanations).length > 0
     });
-    
+
     if (!initialized && savedConceptExplanations && Object.keys(savedConceptExplanations).length > 0) {
       console.log('✅ 恢复已保存的概念解释:', Object.keys(savedConceptExplanations).length, '个');
       setConceptExplanations(savedConceptExplanations);
@@ -2569,7 +2582,7 @@ const ConceptsModule = memo(({ concepts, onDragStart, savedConceptExplanations =
         console.log('🔄 初始化ConceptsModule（无已保存解释）');
         setInitialized(true);
       }, 100); // 等待100ms，让父组件有时间恢复数据
-      
+
       return () => clearTimeout(timer);
     }
   }, [savedConceptExplanations, initialized]);
@@ -2578,34 +2591,34 @@ const ConceptsModule = memo(({ concepts, onDragStart, savedConceptExplanations =
   React.useEffect(() => {
     const preloadConceptExplanations = async () => {
       if (!initialized || !concepts || concepts.length === 0) return;
-      
+
       // 过滤出尚未加载的概念
-      const conceptsToLoad = concepts.filter(concept => 
-        !loadedConceptIds.has(concept.id) && 
+      const conceptsToLoad = concepts.filter(concept =>
+        !loadedConceptIds.has(concept.id) &&
         !conceptExplanations[concept.id]
       );
-      
+
       console.log('📋 预加载检查:', {
         totalConcepts: concepts.length,
         alreadyLoaded: loadedConceptIds.size,
         needToLoad: conceptsToLoad.length,
         conceptsToLoad: conceptsToLoad.map(c => c.term)
       });
-      
+
       if (conceptsToLoad.length === 0) {
         console.log('✅ 所有概念解释已加载，跳过预加载');
         return;
       }
-      
+
       setIsPreloading(true);
-      
+
       // 分批处理，每批最多5个请求
       const batchSize = 5;
       const batches = [];
       for (let i = 0; i < conceptsToLoad.length; i += batchSize) {
         batches.push(conceptsToLoad.slice(i, i + batchSize));
       }
-      
+
       try {
         const allResults = [];
         for (const batch of batches) {
@@ -2618,35 +2631,35 @@ const ConceptsModule = memo(({ concepts, onDragStart, savedConceptExplanations =
               return { id: concept.id, explanation: null, success: false };
             }
           });
-          
+
           const batchResults = await Promise.all(batchPromises);
           allResults.push(...batchResults);
-          
+
           // 批次间添加延迟，避免过于频繁的请求
           if (batches.indexOf(batch) < batches.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
-        
+
         // 更新状态
         const explanationsMap = { ...conceptExplanations };
         const newLoadedIds = new Set(loadedConceptIds);
-        
+
         allResults.forEach(({ id, explanation, success }) => {
           newLoadedIds.add(id);
           if (explanation && success) {
             explanationsMap[id] = explanation;
           }
         });
-        
+
         setConceptExplanations(explanationsMap);
         setLoadedConceptIds(newLoadedIds);
-        
+
         // 通知父组件概念解释已更新
         if (onConceptExplanationsUpdate) {
           onConceptExplanationsUpdate(explanationsMap);
         }
-        
+
       } catch (error) {
         console.error('批量加载概念解释失败:', error);
       } finally {
@@ -2655,7 +2668,7 @@ const ConceptsModule = memo(({ concepts, onDragStart, savedConceptExplanations =
     };
 
     preloadConceptExplanations();
-  }, [concepts, initialized, loadedConceptIds, conceptExplanations]);
+  }, [concepts, initialized, loadedConceptIds, conceptExplanations, api, onConceptExplanationsUpdate]);
 
   const handleConceptClick = (concept) => {
     if (expandedConcept === concept.id) {
@@ -2695,69 +2708,69 @@ const ConceptsModule = memo(({ concepts, onDragStart, savedConceptExplanations =
           </div>
         )}
       </div>
-      
+
       <div className="flex-1 overflow-y-auto pr-2">
-      
-      {Object.entries(groupedConcepts).map(([category, conceptList]) => (
-        <div key={category} className="mb-6">
-          <h3 className="text-lg font-medium text-blue-800 mb-3">{category}</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {conceptList.map((concept) => (
-              <div key={concept.id}>
-                <div
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, concept)}
-                  onClick={() => handleConceptClick(concept)}
-                  className="bg-white rounded-lg p-3 border-2 border-blue-200 hover:border-blue-400 cursor-pointer transition-all duration-200 hover:shadow-md group"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-800 group-hover:text-blue-700">
-                      {concept.term}
-                    </span>
-                    <div className="flex items-center space-x-1">
-                      <span className="text-blue-400 text-xs">
-                        {conceptExplanations[concept.id] ? '✅' : isPreloading ? '⏳' : '🔍'}
+
+        {Object.entries(groupedConcepts).map(([category, conceptList]) => (
+          <div key={category} className="mb-6">
+            <h3 className="text-lg font-medium text-blue-800 mb-3">{category}</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {conceptList.map((concept) => (
+                <div key={concept.id}>
+                  <div
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, concept)}
+                    onClick={() => handleConceptClick(concept)}
+                    className="bg-white rounded-lg p-3 border-2 border-blue-200 hover:border-blue-400 cursor-pointer transition-all duration-200 hover:shadow-md group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-800 group-hover:text-blue-700">
+                        {concept.term}
                       </span>
+                      <div className="flex items-center space-x-1">
+                        <span className="text-blue-400 text-xs">
+                          {conceptExplanations[concept.id] ? '✅' : isPreloading ? '⏳' : '🔍'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            
-            {/* 解释框占满整行 */}
-            {expandedConcept && conceptExplanations[expandedConcept] && (
-              <div className="col-span-full mt-4">
-                <div className="bg-white rounded-lg p-4 border border-blue-200 shadow-sm">
-                  <div className="space-y-3 text-sm">
-                    <div>
-                      <strong className="text-blue-800">解释：</strong>
-                      <p className="text-gray-700 mt-1">{conceptExplanations[expandedConcept].explanation}</p>
+              ))}
+
+              {/* 解释框占满整行 */}
+              {expandedConcept && conceptExplanations[expandedConcept] && (
+                <div className="col-span-full mt-4">
+                  <div className="bg-white rounded-lg p-4 border border-blue-200 shadow-sm">
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <strong className="text-blue-800">解释：</strong>
+                        <p className="text-gray-700 mt-1">{conceptExplanations[expandedConcept].explanation}</p>
+                      </div>
+
+                      {conceptExplanations[expandedConcept].examples?.length > 0 && (
+                        <div>
+                          <strong className="text-blue-800">示例：</strong>
+                          <ul className="text-gray-700 mt-1 list-disc list-inside">
+                            {conceptExplanations[expandedConcept].examples.map((example, idx) => (
+                              <li key={idx}>{example}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {conceptExplanations[expandedConcept].applications && (
+                        <div>
+                          <strong className="text-blue-800">应用：</strong>
+                          <p className="text-gray-700 mt-1">{conceptExplanations[expandedConcept].applications}</p>
+                        </div>
+                      )}
                     </div>
-                    
-                    {conceptExplanations[expandedConcept].examples?.length > 0 && (
-                      <div>
-                        <strong className="text-blue-800">示例：</strong>
-                        <ul className="text-gray-700 mt-1 list-disc list-inside">
-                          {conceptExplanations[expandedConcept].examples.map((example, idx) => (
-                            <li key={idx}>{example}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {conceptExplanations[expandedConcept].applications && (
-                      <div>
-                        <strong className="text-blue-800">应用：</strong>
-                        <p className="text-gray-700 mt-1">{conceptExplanations[expandedConcept].applications}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
       </div>
     </div>
   );
@@ -2786,34 +2799,34 @@ const KnowledgePointsModule = memo(({ knowledgePoints, onDragStart }) => {
         <Target className="w-6 h-6 mr-2 text-green-600" />
         🎯 必学必会知识点
       </h2>
-      
+
       <div className="flex-1 overflow-y-auto pr-2">
-      
-      {Object.entries(groupedPoints).map(([category, pointList]) => (
-        <div key={category} className="mb-6">
-          <h3 className="text-lg font-medium text-green-800 mb-3">{category}</h3>
-          <div className="space-y-3">
-            {pointList.map((point) => (
-              <div
-                key={point.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, point)}
-                className="bg-white rounded-lg p-4 border-2 border-green-200 hover:border-green-400 cursor-move transition-all duration-200 hover:shadow-md group"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-gray-800 group-hover:text-green-700">
-                      {point.title}
-                    </h4>
-                    <p className="text-gray-600 mt-1 text-sm">{point.definition}</p>
+
+        {Object.entries(groupedPoints).map(([category, pointList]) => (
+          <div key={category} className="mb-6">
+            <h3 className="text-lg font-medium text-green-800 mb-3">{category}</h3>
+            <div className="space-y-3">
+              {pointList.map((point) => (
+                <div
+                  key={point.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, point)}
+                  className="bg-white rounded-lg p-4 border-2 border-green-200 hover:border-green-400 cursor-move transition-all duration-200 hover:shadow-md group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-800 group-hover:text-green-700">
+                        {point.title}
+                      </h4>
+                      <p className="text-gray-600 mt-1 text-sm">{point.definition}</p>
+                    </div>
+                    <span className="text-green-400 text-xs ml-2">📋</span>
                   </div>
-                  <span className="text-green-400 text-xs ml-2">📋</span>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
       </div>
     </div>
   );
@@ -2844,13 +2857,13 @@ const SmartBoardModule = memo(({ boardContent }) => {
     try {
       const data = JSON.parse(e.dataTransfer.getData('text/plain'));
       const contextInfo = data.type === 'concept' ? data.data.term : data.data.title;
-      
+
       // 获取当前黑板内容作为上下文
       const currentBoard = boards[currentBoardIndex];
       const context = currentBoard ? currentBoard.content : '';
-      
+
       const response = await api.askSmartBoard(`请详细解释：${contextInfo}`, context);
-      
+
       const newBoard = {
         id: boards.length,
         type: 'answer',
@@ -2861,7 +2874,7 @@ const SmartBoardModule = memo(({ boardContent }) => {
         followUpQuestions: response.followUpQuestions || [],
         parentBoard: currentBoardIndex
       };
-      
+
       setBoards(prev => [...prev, newBoard]);
       setCurrentBoardIndex(boards.length);
     } catch (error) {
@@ -2875,14 +2888,14 @@ const SmartBoardModule = memo(({ boardContent }) => {
 
   const handleAskQuestion = async () => {
     if (!question.trim()) return;
-    
+
     // 获取当前黑板内容作为上下文
     const currentBoard = boards[currentBoardIndex];
     const context = currentBoard ? currentBoard.content : '';
-    
+
     try {
       const response = await api.askSmartBoard(question, context);
-      
+
       const newBoard = {
         id: boards.length,
         type: 'answer',
@@ -2893,7 +2906,7 @@ const SmartBoardModule = memo(({ boardContent }) => {
         followUpQuestions: response.followUpQuestions || [],
         parentBoard: currentBoardIndex
       };
-      
+
       setBoards(prev => [...prev, newBoard]);
       setCurrentBoardIndex(boards.length);
       setQuestion('');
@@ -2913,10 +2926,10 @@ const SmartBoardModule = memo(({ boardContent }) => {
   const handleFollowUpQuestion = async (followUpQuestion) => {
     const currentBoard = boards[currentBoardIndex];
     const context = currentBoard ? currentBoard.content : '';
-    
+
     try {
       const response = await api.askSmartBoard(followUpQuestion, context);
-      
+
       const newBoard = {
         id: boards.length,
         type: 'answer',
@@ -2927,7 +2940,7 @@ const SmartBoardModule = memo(({ boardContent }) => {
         followUpQuestions: response.followUpQuestions || [],
         parentBoard: currentBoardIndex
       };
-      
+
       setBoards(prev => [...prev, newBoard]);
       setCurrentBoardIndex(boards.length);
     } catch (error) {
@@ -2936,8 +2949,8 @@ const SmartBoardModule = memo(({ boardContent }) => {
   };
 
   const currentBoard = boards[currentBoardIndex];
-  const isLoading = Object.values(state.loadingStates).some(loading => 
-    typeof loading === 'boolean' && loading && 
+  const isLoading = Object.values(state.loadingStates).some(loading =>
+    typeof loading === 'boolean' && loading &&
     Object.keys(state.loadingStates).some(key => key.startsWith('smartBoard_'))
   );
 
@@ -2989,11 +3002,11 @@ const SmartBoardModule = memo(({ boardContent }) => {
                 </h3>
               </div>
             )}
-            
+
             <div className="text-gray-100 leading-relaxed">
               {currentBoard.content}
             </div>
-            
+
             {currentBoard.keyPoints?.length > 0 && (
               <div>
                 <h4 className="font-semibold text-blue-400 mb-2">关键要点：</h4>
@@ -3004,7 +3017,7 @@ const SmartBoardModule = memo(({ boardContent }) => {
                 </ul>
               </div>
             )}
-            
+
             {currentBoard.examples?.length > 0 && (
               <div>
                 <h4 className="font-semibold text-green-400 mb-2">示例：</h4>
@@ -3017,7 +3030,7 @@ const SmartBoardModule = memo(({ boardContent }) => {
                 </div>
               </div>
             )}
-            
+
             {currentBoard.followUpQuestions?.length > 0 && (
               <div>
                 <h4 className="font-semibold text-purple-400 mb-2">深入思考：</h4>
@@ -3114,12 +3127,12 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
       // 分离概念和知识点
       const selectedConcepts = selectedItems.filter(item => item.type === 'concept');
       const selectedKnowledgePoints = selectedItems.filter(item => item.type === 'knowledgePoint');
-      
+
       const result = await api.generateWorkshopSimulator(selectedConcepts, selectedKnowledgePoints, topic);
       setSimulatorData(result);
       dispatch({ type: 'SET_WORKSHOP_SIMULATOR', simulator: result });
       setShowSelection(false);
-      
+
       // 初始化参数
       const initialParams = {};
       if (result.simulator?.parameters) {
@@ -3172,38 +3185,38 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
         const formula = calc.formula.replace(/result\s*=\s*/, '');
         const paramNames = Object.keys(parameters);
         let evalFormula = formula;
-        
+
         paramNames.forEach(paramName => {
           evalFormula = evalFormula.replace(new RegExp(paramName, 'g'), parameters[paramName]);
         });
-        
-        // 使用Function构造函数替代eval，更安全
-        results[calc.id] = new Function(...paramNames, `return ${evalFormula}`)(...paramNames.map(name => parameters[name]));
+
+        // 使用安全的数学表达式计算器
+        results[calc.id] = evaluateExpression(evalFormula, parameters);
       } catch (error) {
         console.error('计算失败:', error);
         results[calc.id] = 0;
       }
     });
-    
+
     return results;
   };
 
   // 获取反馈信息
   const getFeedback = () => {
     if (!simulatorData?.simulator?.feedback) return [];
-    
+
     return simulatorData.simulator.feedback.filter(feedback => {
       try {
         const condition = feedback.condition;
         const paramNames = Object.keys(parameters);
         let evalCondition = condition;
-        
+
         paramNames.forEach(paramName => {
           evalCondition = evalCondition.replace(new RegExp(paramName, 'g'), parameters[paramName]);
         });
-        
-        // 使用Function构造函数替代eval，更安全
-        return new Function(...paramNames, `return ${evalCondition}`)(...paramNames.map(name => parameters[name]));
+
+        // 使用安全的数学表达式计算器
+        return evaluateExpression(evalCondition, parameters);
       } catch (error) {
         console.error('反馈条件评估失败:', error);
         return false;
@@ -3239,7 +3252,7 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
             )}
           </div>
         );
-      
+
       case 'select':
         return (
           <div key={param.id} className="mb-4">
@@ -3260,7 +3273,7 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
             )}
           </div>
         );
-      
+
       case 'input':
         return (
           <div key={param.id} className="mb-4">
@@ -3281,7 +3294,7 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
             )}
           </div>
         );
-      
+
       default:
         return null;
     }
@@ -3290,14 +3303,14 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
   // 渲染可视化
   const renderVisualization = () => {
     if (!simulatorData?.simulator?.visualization) return null;
-    
+
     const viz = simulatorData.simulator.visualization;
     const results = calculateResults();
-    
+
     return (
       <div className="bg-white rounded-lg p-4 border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">模拟效果</h3>
-        <div 
+        <div
           className="border border-gray-300 rounded-lg bg-gray-50"
           style={{ width: viz.width, height: viz.height }}
         >
@@ -3305,60 +3318,60 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
             {viz.elements.map((element, index) => {
               const elementProps = {
                 ...element.properties,
-                ...(results[element.id] && { 
+                ...(results[element.id] && {
                   // 根据计算结果动态调整元素属性
                   fill: results[element.id] > 50 ? '#4ade80' : '#f87171',
                   stroke: results[element.id] > 50 ? '#22c55e' : '#ef4444'
                 })
               };
-              
-                             switch (element.type) {
-                 case 'shape':
-                   if (element.shape === 'rect') {
-                     return (
-                       <rect
-                         key={index}
-                         x={element.x}
-                         y={element.y}
-                         width={element.width}
-                         height={element.height}
-                         fill={elementProps.fill}
-                         stroke={elementProps.stroke}
-                         strokeWidth="2"
-                       />
-                     );
-                   } else if (element.shape === 'circle') {
-                     return (
-                       <circle
-                         key={index}
-                         cx={element.x + element.width / 2}
-                         cy={element.y + element.height / 2}
-                         r={Math.min(element.width, element.height) / 2}
-                         fill={elementProps.fill}
-                         stroke={elementProps.stroke}
-                         strokeWidth="2"
-                       />
-                     );
-                   }
-                   return null;
-                 
-                 case 'text':
-                   return (
-                     <text
-                       key={index}
-                       x={element.x}
-                       y={element.y}
-                       fill={elementProps.fill || '#000000'}
-                       fontSize={elementProps.fontSize || '16'}
-                       fontWeight={elementProps.fontWeight || 'normal'}
-                     >
-                       {elementProps.text || element.text}
-                     </text>
-                   );
-                 
-                 default:
-                   return null;
-               }
+
+              switch (element.type) {
+                case 'shape':
+                  if (element.shape === 'rect') {
+                    return (
+                      <rect
+                        key={index}
+                        x={element.x}
+                        y={element.y}
+                        width={element.width}
+                        height={element.height}
+                        fill={elementProps.fill}
+                        stroke={elementProps.stroke}
+                        strokeWidth="2"
+                      />
+                    );
+                  } else if (element.shape === 'circle') {
+                    return (
+                      <circle
+                        key={index}
+                        cx={element.x + element.width / 2}
+                        cy={element.y + element.height / 2}
+                        r={Math.min(element.width, element.height) / 2}
+                        fill={elementProps.fill}
+                        stroke={elementProps.stroke}
+                        strokeWidth="2"
+                      />
+                    );
+                  }
+                  return null;
+
+                case 'text':
+                  return (
+                    <text
+                      key={index}
+                      x={element.x}
+                      y={element.y}
+                      fill={elementProps.fill || '#000000'}
+                      fontSize={elementProps.fontSize || '16'}
+                      fontWeight={elementProps.fontWeight || 'normal'}
+                    >
+                      {elementProps.text || element.text}
+                    </text>
+                  );
+
+                default:
+                  return null;
+              }
             })}
           </svg>
         </div>
@@ -3397,7 +3410,7 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
             </button>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg p-4 mb-4">
           <h3 className="text-lg font-semibold text-gray-800 mb-3">🎨 3D绘图与物理模拟</h3>
           <p className="text-gray-600 mb-4">
@@ -3411,8 +3424,17 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
             <li>• 🖱️ 拖拽、旋转、缩放3D场景</li>
           </ul>
         </div>
-        
-        <VoxelWorldEditor apiService={APIService.getInstance()} />
+
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+              <p className="text-gray-600">正在加载3D编辑器...</p>
+            </div>
+          </div>
+        }>
+          <VoxelWorldEditor apiService={APIService.getInstance()} />
+        </Suspense>
       </div>
     );
   }
@@ -3445,13 +3467,13 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
             </button>
           </div>
         </div>
-        
+
         <div className="mb-6">
           <div className="text-gray-600 mb-4">
             <p className="text-lg mb-2">选择你想要理解的概念或知识点</p>
             <p className="text-sm">AI将基于你的选择创建专门的交互式模拟器，或者直接体验3D体素世界模拟器</p>
           </div>
-          
+
           {/* 模拟器类型选择 */}
           <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">选择模拟器类型</h3>
@@ -3469,7 +3491,7 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
                   基于选中的概念和知识点，AI将生成专门的交互式模拟器
                 </p>
               </button>
-              
+
               <button
                 onClick={startVoxelSimulator}
                 className="p-4 text-left rounded-lg border-2 border-purple-300 bg-purple-50 hover:bg-purple-100 transition-colors duration-200"
@@ -3484,15 +3506,14 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
               </button>
             </div>
           </div>
-          
+
           {selectedItems.length > 0 && (
             <div className="mb-4 p-3 bg-orange-100 rounded-lg">
               <h3 className="font-medium text-orange-800 mb-2">已选择 ({selectedItems.length}):</h3>
               <div className="flex flex-wrap gap-2">
                 {selectedItems.map((item, index) => (
-                  <span key={index} className={`px-2 py-1 rounded text-sm ${
-                    item.type === 'concept' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                  }`}>
+                  <span key={index} className={`px-2 py-1 rounded text-sm ${item.type === 'concept' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                    }`}>
                     {item.type === 'concept' ? item.term : item.title}
                     <button
                       onClick={() => handleItemSelect(item, item.type)}
@@ -3522,11 +3543,10 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
                     <button
                       key={index}
                       onClick={() => handleItemSelect(concept, 'concept')}
-                      className={`w-full p-3 text-left rounded-lg border transition-all duration-200 ${
-                        isSelected
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                      }`}
+                      className={`w-full p-3 text-left rounded-lg border transition-all duration-200 ${isSelected
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{concept.term}</span>
@@ -3540,7 +3560,7 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
               </div>
             </div>
           )}
-          
+
           {/* 知识点选择 */}
           {knowledgePoints && knowledgePoints.length > 0 && (
             <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -3555,11 +3575,10 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
                     <button
                       key={index}
                       onClick={() => handleItemSelect(point, 'knowledgePoint')}
-                      className={`w-full p-3 text-left rounded-lg border transition-all duration-200 ${
-                        isSelected
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
-                      }`}
+                      className={`w-full p-3 text-left rounded-lg border transition-all duration-200 ${isSelected
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -3633,11 +3652,10 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
                   <button
                     key={index}
                     onClick={() => applyScenario(scenario)}
-                    className={`w-full p-3 text-left rounded-lg border transition-colors duration-200 ${
-                      currentScenario?.name === scenario.name
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-gray-200 hover:border-orange-300 hover:bg-orange-50'
-                    }`}
+                    className={`w-full p-3 text-left rounded-lg border transition-colors duration-200 ${currentScenario?.name === scenario.name
+                      ? 'border-orange-500 bg-orange-50 text-orange-700'
+                      : 'border-gray-200 hover:border-orange-300 hover:bg-orange-50'
+                      }`}
                   >
                     <h4 className="font-medium">{scenario.name}</h4>
                     <p className="text-sm text-gray-600 mt-1">{scenario.description}</p>
@@ -3673,11 +3691,10 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
                 {getFeedback().map((feedback, index) => (
                   <div
                     key={index}
-                    className={`p-3 rounded-lg ${
-                      feedback.type === 'success' ? 'bg-green-100 text-green-800' :
+                    className={`p-3 rounded-lg ${feedback.type === 'success' ? 'bg-green-100 text-green-800' :
                       feedback.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}
+                        'bg-red-100 text-red-800'
+                      }`}
                   >
                     {feedback.message}
                   </div>
@@ -3690,7 +3707,7 @@ const WorkshopModule = memo(({ concepts, knowledgePoints, topic }) => {
         {/* 右侧：可视化区域 */}
         <div className="space-y-6">
           {renderVisualization()}
-          
+
           {/* 学习目标 */}
           {simulatorData.learningObjectives && simulatorData.learningObjectives.length > 0 && (
             <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -3733,7 +3750,7 @@ const DeepLearningDisplay = memo(() => {
     if (state.currentLearningId && state.selectedOutlineItem) {
       const existingRecord = StorageManager.getLearningRecord(state.currentLearningId);
       const savedModule = existingRecord?.learningModules?.[state.selectedOutlineItem.id];
-      
+
       if (savedModule) {
         // 恢复答题状态
         if (savedModule.quizAnswers) {
@@ -3763,7 +3780,7 @@ const DeepLearningDisplay = memo(() => {
       const existingRecord = StorageManager.getLearningRecord(state.currentLearningId);
       const existingModules = existingRecord?.learningModules || {};
       const existingModule = existingModules[state.selectedOutlineItem.id] || {};
-      
+
       // 累积保存学习模块（保留概念解释，更新答题状态）
       const updatedModules = {
         ...existingModules,
@@ -3775,12 +3792,12 @@ const DeepLearningDisplay = memo(() => {
           quizQuestionDetails
         }
       };
-      
+
       StorageManager.updateLearningRecord(state.currentLearningId, {
         stage: 'learning_modules_created',
         learningModules: updatedModules
       });
-      
+
       console.log('学习模块答题状态已保存:', state.selectedOutlineItem.id);
     }
   }, [state.currentLearningId, state.deepLearningContent, state.selectedOutlineItem, quizAnswers, showResults, quizQuestionDetails]);
@@ -3792,7 +3809,7 @@ const DeepLearningDisplay = memo(() => {
       const existingRecord = StorageManager.getLearningRecord(state.currentLearningId);
       const existingModules = existingRecord?.learningModules || {};
       const existingModule = existingModules[state.selectedOutlineItem.id] || {};
-      
+
       // 只更新概念解释
       const updatedModules = {
         ...existingModules,
@@ -3801,12 +3818,12 @@ const DeepLearningDisplay = memo(() => {
           conceptExplanations
         }
       };
-      
+
       StorageManager.updateLearningRecord(state.currentLearningId, {
         stage: 'learning_modules_created',
         learningModules: updatedModules
       });
-      
+
       console.log('概念解释已保存:', Object.keys(conceptExplanations).length, '个');
     }
   }, [conceptExplanations, state.currentLearningId, state.selectedOutlineItem]);
@@ -3881,7 +3898,7 @@ const DeepLearningDisplay = memo(() => {
                 {/* 必学必会概念 */}
                 {state.deepLearningContent.concepts && (
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 h-96 overflow-hidden">
-                    <ConceptsModule 
+                    <ConceptsModule
                       concepts={state.deepLearningContent.concepts}
                       onDragStart={(item, type) => console.log('拖拽开始:', item, type)}
                       savedConceptExplanations={conceptExplanations}
@@ -3893,7 +3910,7 @@ const DeepLearningDisplay = memo(() => {
                 {/* 必学必会知识点 */}
                 {state.deepLearningContent.knowledgePoints && (
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 h-96 overflow-hidden">
-                    <KnowledgePointsModule 
+                    <KnowledgePointsModule
                       knowledgePoints={state.deepLearningContent.knowledgePoints}
                       onDragStart={(item, type) => console.log('拖拽开始:', item, type)}
                     />
@@ -3904,14 +3921,14 @@ const DeepLearningDisplay = memo(() => {
 
             {/* 智能黑板 */}
             {state.deepLearningContent.boardContent && (
-              <SmartBoardModule 
+              <SmartBoardModule
                 boardContent={state.deepLearningContent.boardContent}
               />
             )}
 
             {/* 智慧工坊 */}
             {(state.deepLearningContent.concepts || state.deepLearningContent.knowledgePoints) && (
-              <WorkshopModule 
+              <WorkshopModule
                 concepts={state.deepLearningContent.concepts}
                 knowledgePoints={state.deepLearningContent.knowledgePoints}
                 topic={state.selectedOutlineItem?.title || state.confirmedTopic}
@@ -3937,22 +3954,22 @@ const DeepLearningDisplay = memo(() => {
                   {state.deepLearningContent.quiz.map((q, index) => {
                     const userAnswer = quizAnswers[index];
                     const showResult = showResults[index];
-                    const isCorrect = q.type === 'fill_blank' 
+                    const isCorrect = q.type === 'fill_blank'
                       ? userAnswer?.fillAnswer?.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()
                       : userAnswer?.selectedOption === q.correctAnswer;
-                    
+
                     return (
                       <div key={index} className="bg-white bg-opacity-70 rounded-lg p-4">
                         <h3 className="font-semibold text-gray-800 mb-3">
                           问题 {index + 1}: {q.question}
                         </h3>
-                        
+
                         {/* 选择题 */}
                         {(q.type === 'multiple_choice' || !q.type) && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
                             {q.options.map((option, optIndex) => {
                               let buttonClass = 'p-3 rounded text-sm border transition-colors duration-200 text-left';
-                              
+
                               if (showResult) {
                                 // 显示结果状态
                                 if (optIndex === q.correctAnswer) {
@@ -3970,7 +3987,7 @@ const DeepLearningDisplay = memo(() => {
                                   buttonClass += ' bg-gray-100 border-gray-200 hover:bg-blue-50 hover:border-blue-200 cursor-pointer';
                                 }
                               }
-                              
+
                               return (
                                 <button
                                   key={optIndex}
@@ -4004,21 +4021,19 @@ const DeepLearningDisplay = memo(() => {
                                 onChange={(e) => !showResult && handleQuizAnswer(index, -1, e.target.value)}
                                 placeholder="请输入答案..."
                                 disabled={showResult}
-                                className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  showResult 
-                                    ? isCorrect 
-                                      ? 'bg-green-50 border-green-300 text-green-800' 
-                                      : 'bg-red-50 border-red-300 text-red-800'
-                                    : 'border-gray-300'
-                                }`}
+                                className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${showResult
+                                  ? isCorrect
+                                    ? 'bg-green-50 border-green-300 text-green-800'
+                                    : 'bg-red-50 border-red-300 text-red-800'
+                                  : 'border-gray-300'
+                                  }`}
                               />
                             </div>
-                            
+
                             {showResult && (
                               <div className="space-y-2">
-                                <div className={`p-2 rounded text-sm ${
-                                  isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
+                                <div className={`p-2 rounded text-sm ${isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                  }`}>
                                   <strong>正确答案：</strong>{q.correctAnswer}
                                 </div>
                                 {userAnswer?.fillAnswer && !isCorrect && (
@@ -4028,7 +4043,7 @@ const DeepLearningDisplay = memo(() => {
                                 )}
                               </div>
                             )}
-                            
+
                             {!showResult && q.hints && q.hints.length > 0 && (
                               <div className="mt-2">
                                 <details className="text-sm">
@@ -4048,32 +4063,30 @@ const DeepLearningDisplay = memo(() => {
                           </div>
                         )}
 
-                        {(((q.type === 'multiple_choice' || !q.type) && userAnswer?.selectedOption !== undefined) || 
+                        {(((q.type === 'multiple_choice' || !q.type) && userAnswer?.selectedOption !== undefined) ||
                           (q.type === 'fill_blank' && userAnswer?.fillAnswer?.trim())) && !showResult && (
-                          <div className="flex justify-center mb-3">
-                            <button
-                              onClick={() => handleShowResult(index)}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-                            >
-                              查看答案
-                            </button>
-                          </div>
-                        )}
+                            <div className="flex justify-center mb-3">
+                              <button
+                                onClick={() => handleShowResult(index)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                              >
+                                查看答案
+                              </button>
+                            </div>
+                          )}
 
                         {showResult && (
                           <div className="space-y-3">
-                            <div className={`p-3 rounded-lg border-l-4 ${
-                              isCorrect 
-                                ? 'bg-green-50 border-green-400' 
-                                : 'bg-red-50 border-red-400'
-                            }`}>
-                              <p className={`font-medium ${
-                                isCorrect ? 'text-green-800' : 'text-red-800'
+                            <div className={`p-3 rounded-lg border-l-4 ${isCorrect
+                              ? 'bg-green-50 border-green-400'
+                              : 'bg-red-50 border-red-400'
                               }`}>
+                              <p className={`font-medium ${isCorrect ? 'text-green-800' : 'text-red-800'
+                                }`}>
                                 {isCorrect ? '🎉 回答正确！' : '❌ 回答错误'}
                               </p>
                             </div>
-                            
+
                             <div className="bg-blue-100 border border-blue-200 rounded-lg p-3">
                               <p className="text-sm text-blue-800">
                                 <strong>基础解析：</strong> {q.explanation}
@@ -4119,7 +4132,7 @@ const DeepLearningDisplay = memo(() => {
                                     <strong>详细说明:</strong>
                                     <p>{quizQuestionDetails[index].detailedExplanation.detailedExplanation}</p>
                                   </div>
-                                  
+
                                   <div>
                                     <strong>错误选项分析:</strong>
                                     <ul className="list-disc list-inside ml-4">
@@ -4128,12 +4141,12 @@ const DeepLearningDisplay = memo(() => {
                                       ))}
                                     </ul>
                                   </div>
-                                  
+
                                   <div>
                                     <strong>知识扩展:</strong>
                                     <p>{quizQuestionDetails[index].detailedExplanation.knowledgeExtension}</p>
                                   </div>
-                                  
+
                                   <div>
                                     <strong>实际应用:</strong>
                                     <p>{quizQuestionDetails[index].detailedExplanation.practicalApplication}</p>
@@ -4150,52 +4163,50 @@ const DeepLearningDisplay = memo(() => {
                                     <strong>重新分析:</strong>
                                     <p>{quizQuestionDetails[index].challengeResult.reanalysis}</p>
                                   </div>
-                                  
+
                                   <div>
                                     <strong>AI重新思考后的答案:</strong>
-                                    <p className={`font-medium ${
-                                      (q.type === 'fill_blank' 
-                                        ? quizQuestionDetails[index].challengeResult.finalAnswer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()
-                                        : quizQuestionDetails[index].challengeResult.finalAnswer === q.correctAnswer)
-                                        ? 'text-green-600' 
-                                        : 'text-red-600'
-                                    }`}>
-                                      {q.type === 'fill_blank' 
+                                    <p className={`font-medium ${(q.type === 'fill_blank'
+                                      ? quizQuestionDetails[index].challengeResult.finalAnswer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()
+                                      : quizQuestionDetails[index].challengeResult.finalAnswer === q.correctAnswer)
+                                      ? 'text-green-600'
+                                      : 'text-red-600'
+                                      }`}>
+                                      {q.type === 'fill_blank'
                                         ? quizQuestionDetails[index].challengeResult.finalAnswer
                                         : `${String.fromCharCode(65 + quizQuestionDetails[index].challengeResult.finalAnswer)}. ${q.options[quizQuestionDetails[index].challengeResult.finalAnswer]}`
                                       }
-                                      {(q.type === 'fill_blank' 
+                                      {(q.type === 'fill_blank'
                                         ? quizQuestionDetails[index].challengeResult.finalAnswer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()
                                         : quizQuestionDetails[index].challengeResult.finalAnswer === q.correctAnswer)
-                                        ? ' (与原答案一致)' 
+                                        ? ' (与原答案一致)'
                                         : ' (与原答案不同!)'}
                                     </p>
                                   </div>
-                                  
+
                                   <div>
                                     <strong>置信度:</strong>
-                                    <span className={`px-2 py-1 rounded text-xs ${
-                                      quizQuestionDetails[index].challengeResult.confidence === 'high' ? 'bg-green-100 text-green-700' :
+                                    <span className={`px-2 py-1 rounded text-xs ${quizQuestionDetails[index].challengeResult.confidence === 'high' ? 'bg-green-100 text-green-700' :
                                       quizQuestionDetails[index].challengeResult.confidence === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                      'bg-red-100 text-red-700'
-                                    }`}>
+                                        'bg-red-100 text-red-700'
+                                      }`}>
                                       {quizQuestionDetails[index].challengeResult.confidence === 'high' ? '高' :
-                                       quizQuestionDetails[index].challengeResult.confidence === 'medium' ? '中' : '低'}
+                                        quizQuestionDetails[index].challengeResult.confidence === 'medium' ? '中' : '低'}
                                     </span>
                                   </div>
-                                  
+
                                   <div>
                                     <strong>推理过程:</strong>
                                     <p>{quizQuestionDetails[index].challengeResult.reasoning}</p>
                                   </div>
-                                  
+
                                   {quizQuestionDetails[index].challengeResult.controversies && (
                                     <div>
                                       <strong>争议点:</strong>
                                       <p>{quizQuestionDetails[index].challengeResult.controversies}</p>
                                     </div>
                                   )}
-                                  
+
                                   {quizQuestionDetails[index].challengeResult.alternativeViews && (
                                     <div>
                                       <strong>其他观点:</strong>
@@ -4209,13 +4220,13 @@ const DeepLearningDisplay = memo(() => {
                             {(state.errors[`explanation_${q.id || 'quiz'}`] || state.errors[`challenge_${q.id || 'quiz'}`]) && (
                               <div>
                                 {state.errors[`explanation_${q.id || 'quiz'}`] && (
-                                  <ErrorMessage 
+                                  <ErrorMessage
                                     message={state.errors[`explanation_${q.id || 'quiz'}`]}
                                     onRetry={() => handleQuizDetailedExplanation(q, index)}
                                   />
                                 )}
                                 {state.errors[`challenge_${q.id || 'quiz'}`] && (
-                                  <ErrorMessage 
+                                  <ErrorMessage
                                     message={state.errors[`challenge_${q.id || 'quiz'}`]}
                                     onRetry={() => handleQuizChallengeAnswer(q, index)}
                                   />
@@ -4225,34 +4236,34 @@ const DeepLearningDisplay = memo(() => {
                           </div>
                         )}
 
-                        {(((q.type === 'multiple_choice' || !q.type) && userAnswer?.selectedOption === undefined) || 
+                        {(((q.type === 'multiple_choice' || !q.type) && userAnswer?.selectedOption === undefined) ||
                           (q.type === 'fill_blank' && !userAnswer?.fillAnswer?.trim())) && (
-                          <div className="text-center py-2">
-                            <p className="text-sm text-gray-500">
-                              {(q.type === 'multiple_choice' || !q.type) ? '请选择一个答案' : '请输入答案'}
-                            </p>
-                          </div>
-                        )}
+                            <div className="text-center py-2">
+                              <p className="text-sm text-gray-500">
+                                {(q.type === 'multiple_choice' || !q.type) ? '请选择一个答案' : '请输入答案'}
+                              </p>
+                            </div>
+                          )}
                       </div>
                     );
                   })}
                 </div>
 
                 {/* 整体结果统计 */}
-                {Object.keys(showResults).length === state.deepLearningContent.quiz.length && 
-                 Object.keys(quizAnswers).length === state.deepLearningContent.quiz.length && (
-                  <div className="mt-6 bg-white bg-opacity-70 rounded-lg p-4 text-center">
-                    <h3 className="font-semibold text-gray-800 mb-2">测试完成！</h3>
-                    <p className="text-gray-700">
-                      总分：{Object.entries(quizAnswers).filter(([index, answer]) => {
-                        const q = state.deepLearningContent.quiz[parseInt(index)];
-                        return q.type === 'fill_blank' 
-                          ? answer?.fillAnswer?.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()
-                          : answer?.selectedOption === q.correctAnswer;
-                      }).length} / {state.deepLearningContent.quiz.length}
-                    </p>
-                  </div>
-                )}
+                {Object.keys(showResults).length === state.deepLearningContent.quiz.length &&
+                  Object.keys(quizAnswers).length === state.deepLearningContent.quiz.length && (
+                    <div className="mt-6 bg-white bg-opacity-70 rounded-lg p-4 text-center">
+                      <h3 className="font-semibold text-gray-800 mb-2">测试完成！</h3>
+                      <p className="text-gray-700">
+                        总分：{Object.entries(quizAnswers).filter(([index, answer]) => {
+                          const q = state.deepLearningContent.quiz[parseInt(index)];
+                          return q.type === 'fill_blank'
+                            ? answer?.fillAnswer?.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()
+                            : answer?.selectedOption === q.correctAnswer;
+                        }).length} / {state.deepLearningContent.quiz.length}
+                      </p>
+                    </div>
+                  )}
               </div>
             )}
           </div>
