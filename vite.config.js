@@ -74,6 +74,11 @@ export default defineConfig({
     // 环境变量前缀
     envPrefix: 'REACT_APP_',
 
+    // 定义全局变量以兼容 CRA
+    define: {
+        'process.env': 'import.meta.env'
+    },
+
     // 预览服务器配置
     preview: {
         port: 3000,
