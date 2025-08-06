@@ -767,6 +767,10 @@ const VoxelWorldEditor = ({ apiService }) => {
   const fileInputRef = useRef(null); // Ref for the hidden file input
   const [isProcessingGlb, setIsProcessingGlb] = useState(false);
   const [glbError, setGlbError] = useState(null);
+  const [glbResolution, setGlbResolution] = useState(40);
+  const [glbSmoothing, setGlbSmoothing] = useState(1); // 默认平滑1次
+  const [isGlbOptionsModalOpen, setIsGlbOptionsModalOpen] = useState(false);
+  const [selectedGlbFile, setSelectedGlbFile] = useState(null);
 
   // 初始化3D场景和历史记录
   useEffect(() => {
@@ -1037,12 +1041,27 @@ const VoxelWorldEditor = ({ apiService }) => {
     const file = event.target.files[0];
     if (!file) return;
 
+    // 保存选中的文件并打开选项模态框
+    setSelectedGlbFile(file);
+    setIsGlbOptionsModalOpen(true);
+    // 重置文件输入，以便用户可以再次选择相同的文件
+    event.target.value = null;
+  };
+
+  // 确认GLB导入
+  const handleConfirmGlbImport = async () => {
+    if (!selectedGlbFile) return;
+    
     setIsProcessingGlb(true);
     setGlbError(null);
+    setIsGlbOptionsModalOpen(false);
 
     try {
-      // 调用我们的GLB处理器核心逻辑
-      const voxels = await processGlbToVoxels(file, { resolution: 25 });
+      // 将分辨率和平滑次数一起作为选项传入
+      const voxels = await processGlbToVoxels(selectedGlbFile, { 
+        resolution: glbResolution,
+        smoothingIterations: glbSmoothing 
+      });
 
       if (voxels && voxels.length > 0) {
         // 使用通用的addItemToBackpack函数
@@ -1055,8 +1074,7 @@ const VoxelWorldEditor = ({ apiService }) => {
       setGlbError(error.message || "处理GLB文件时发生未知错误。");
     } finally {
       setIsProcessingGlb(false);
-      // 重置文件输入，以便用户可以再次选择相同的文件
-      event.target.value = null; 
+      setSelectedGlbFile(null);
     }
   };
 
@@ -1349,6 +1367,70 @@ const VoxelWorldEditor = ({ apiService }) => {
       }
     }
     return false;
+  };
+
+  // GLB选项模态框组件
+  const GlbOptionsModal = ({ isOpen, onClose, onConfirm }) => {
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+          <h3 className="text-xl font-bold mb-4">📦 GLB 导入选项</h3>
+          
+          {/* 分辨率滑块 */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2">
+              模型精细度 (Resolution): <span className="font-bold">{glbResolution}</span>
+            </label>
+            <input 
+              type="range" 
+              min="20" 
+              max="120" 
+              step="5" 
+              value={glbResolution} 
+              onChange={(e) => setGlbResolution(parseInt(e.target.value, 10))} 
+              className="w-full" 
+            />
+          </div>
+          
+          {/* 平滑强度滑块 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">
+              表面平滑度 (Smoothing): <span className="font-bold">{glbSmoothing}</span> 次
+            </label>
+            <input
+              type="range"
+              min="0" // 0表示不平滑
+              max="5" // 超过5次效果不明显且慢
+              step="1"
+              value={glbSmoothing}
+              onChange={(e) => setGlbSmoothing(parseInt(e.target.value, 10))}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>无 (原始)</span>
+              <span>高 (更圆滑)</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+            >
+              取消
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              确认导入
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // AI生成器模态框组件
@@ -1820,6 +1902,16 @@ const VoxelWorldEditor = ({ apiService }) => {
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
         onGenerate={handleAiGenerate}
+      />
+
+      {/* 新增：GLB选项模态框 */}
+      <GlbOptionsModal
+        isOpen={isGlbOptionsModalOpen}
+        onClose={() => {
+          setIsGlbOptionsModalOpen(false);
+          setSelectedGlbFile(null);
+        }}
+        onConfirm={handleConfirmGlbImport}
       />
 
       {/* 新增：隐藏的文件输入框，用于GLB导入 */}
