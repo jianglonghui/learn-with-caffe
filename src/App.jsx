@@ -239,12 +239,12 @@ const SecurityUtils = {
 // ==================== API服务层 ====================
 class APIService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    this.baseURL = import.meta.env.REACT_APP_API_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
     this.maxRetries = 3;
     this.timeout = 30000;
 
     // 验证API key配置
-    if (!process.env.REACT_APP_GLM_API_KEY) {
+    if (!import.meta.env.REACT_APP_GLM_API_KEY) {
       console.error('⚠️ 警告: REACT_APP_GLM_API_KEY 环境变量未配置！');
       console.error('请创建 .env.local 文件并配置 REACT_APP_GLM_API_KEY');
       throw new Error('API key未配置，请检查环境变量设置');
@@ -278,7 +278,7 @@ class APIService {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.REACT_APP_GLM_API_KEY}`
+            "Authorization": `Bearer ${import.meta.env.REACT_APP_GLM_API_KEY}`
           },
           body: JSON.stringify(requestBody),
           signal: controller.signal
