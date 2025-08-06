@@ -72,13 +72,13 @@ function createTextureColorSampler(texture) {
 
 
 /**
- * [更高精度版] 通过在三角面片表面采样来体素化网格。
- * 这个版本能更好地捕捉曲面细节。
+ * [带智能颜色传播的高精度版]
  * @param {THREE.Mesh} mesh - 要体素化的网格。
  * @param {number} resolution - 沿最长轴的体素数量。
  * @returns {Array<Object>} - 体素数据数组 [{ x, y, z, color }]。
  */
 function voxelizeMesh(mesh, resolution) {
+  // --- 步骤 1: 准备工作 (与之前类似) ---
   mesh.updateWorldMatrix(true, true);
   const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
   geometry.center();
@@ -90,14 +90,16 @@ function voxelizeMesh(mesh, resolution) {
   const voxelSize = maxDim / resolution;
 
   const colorSampler = createTextureColorSampler(mesh.material.map);
-  const voxelDataMap = new Map();
-
   const positionAttribute = geometry.getAttribute('position');
   const uvAttribute = geometry.getAttribute('uv');
   const indexAttribute = geometry.getIndex();
-
-  console.log(`[High-Res Voxelizer] Step 1: Sampling points on triangle surfaces...`);
-  // 步骤1: 获取所有三角面片的数据
+  
+  // surfaceVoxelDataMap 只存储带颜色的物体外壳
+  const surfaceVoxelDataMap = new Map();
+  
+  console.log(`[Smart Color Voxelizer] Step 1: Generating colored surface voxels...`);
+  // --- 步骤 2: 生成高精度的带色外壳 (与之前相同) ---
+  // 获取所有三角面片的数据
   const triangles = [];
   for (let i = 0; i < indexAttribute.count; i += 3) {
     const iA = indexAttribute.getX(i);
@@ -115,9 +117,7 @@ function voxelizeMesh(mesh, resolution) {
     triangles.push({ vA, vB, vC, uvA, uvB, uvC });
   }
 
-  // 步骤2: 在每个三角面片的表面上随机采样点
-  // 采样密度与三角面片面积和分辨率相关
-  const samplingDensity = resolution * resolution * 2;
+  // 在每个三角面片的表面上随机采样点
   const tempVec = new THREE.Vector3();
   const tempUv = new THREE.Vector2();
 
@@ -142,7 +142,7 @@ function voxelizeMesh(mesh, resolution) {
       const z = Math.round(tempVec.z / voxelSize);
       const key = `${x},${y},${z}`;
 
-      if (!voxelDataMap.has(key)) {
+      if (!surfaceVoxelDataMap.has(key)) {
         let color;
         if (tri.uvA) {
           tempUv.set(0,0)
@@ -153,50 +153,72 @@ function voxelizeMesh(mesh, resolution) {
         } else {
           color = mesh.material.color || new THREE.Color(0xcccccc);
         }
-        voxelDataMap.set(key, { color });
+        surfaceVoxelDataMap.set(key, { color });
       }
     }
   });
 
-  // 步骤3: 扫描线填充 (与之前相同)
-  console.log(`[High-Res Voxelizer] Step 2: Filling interior...`);
-  // 准备扫描线填充
+  // --- 步骤 3: 确定物体的完整形状 (使用扫描线，但不传播颜色) ---
+  console.log(`[Smart Color Voxelizer] Step 2: Determining full object shape...`);
+  const totalVoxelSet = new Set(surfaceVoxelDataMap.keys());
   const yzMap = {};
-  voxelDataMap.forEach((data, key) => {
+  surfaceVoxelDataMap.forEach((data, key) => {
     const [x, y, z] = key.split(',').map(Number);
     const yzKey = `${y},${z}`;
     if (!yzMap[yzKey]) yzMap[yzKey] = [];
     yzMap[yzKey].push(x);
   });
-  
-  // 扫描线填充并传播颜色
+
   for (const yzKey in yzMap) {
     const xCoords = yzMap[yzKey];
     if (xCoords.length < 2) continue;
-
     const minX = Math.min(...xCoords);
     const maxX = Math.max(...xCoords);
-
-    // 获取起始点的颜色作为填充色
-    const startVoxelKey = `${minX},${yzKey}`;
-    const fillColor = voxelDataMap.get(startVoxelKey)?.color || new THREE.Color(0xcccccc);
-
     for (let x = minX + 1; x < maxX; x++) {
-      const key = `${x},${yzKey}`;
-      // 只填充尚未存在的体素
-      if (!voxelDataMap.has(key)) {
-        voxelDataMap.set(key, { color: fillColor });
+      totalVoxelSet.add(`${x},${yzKey}`);
+    }
+  }
+
+  // --- 步骤 4: 智能颜色传播 (核心改动) ---
+  console.log(`[Smart Color Voxelizer] Step 3: Propagating color using BFS...`);
+  
+  // finalVoxelDataMap 将存储我们最终的结果
+  const finalVoxelDataMap = new Map(surfaceVoxelDataMap);
+  // queue 用于广度优先搜索，初始值为所有表面体素
+  const queue = Array.from(surfaceVoxelDataMap.keys());
+
+  const directions = [
+    { x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 },
+    { x: 0, y: 1, z: 0 }, { x: 0, y: -1, z: 0 },
+    { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 },
+  ];
+
+  let head = 0;
+  while (head < queue.length) {
+    const currentKey = queue[head++];
+    const [x, y, z] = currentKey.split(',').map(Number);
+    const parentColor = finalVoxelDataMap.get(currentKey).color;
+
+    for (const dir of directions) {
+      const neighborKey = `${x + dir.x},${y + dir.y},${z + dir.z}`;
+
+      // 如果邻居是物体的一部分，但尚未被着色
+      if (totalVoxelSet.has(neighborKey) && !finalVoxelDataMap.has(neighborKey)) {
+        // 将邻居染上与当前体素相同的颜色
+        finalVoxelDataMap.set(neighborKey, { color: parentColor });
+        // 将新着色的邻居加入队列，以便继续传播
+        queue.push(neighborKey);
       }
     }
   }
 
-  // 将Set转换为最终的数组格式
-  const finalVoxels = Array.from(voxelDataMap.entries()).map(([key, data]) => {
+  // --- 步骤 5: 格式化输出 (与之前相同) ---
+  const finalVoxels = Array.from(finalVoxelDataMap.entries()).map(([key, data]) => {
     const [x, y, z] = key.split(',').map(Number);
     return { x, y, z, color: data.color };
   });
 
-  console.log(`[High-Res Voxelizer] Voxelization complete. Generated ${finalVoxels.length} voxels.`);
+  console.log(`[Smart Color Voxelizer] Voxelization complete. Generated ${finalVoxels.length} voxels.`);
   return finalVoxels;
 }
 

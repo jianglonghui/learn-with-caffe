@@ -243,7 +243,31 @@ class SceneManager {
       const intersects = this.raycaster.intersectObject(this.ground);
       if (intersects.length > 0) {
         this.placementObject.position.copy(intersects[0].point);
-        this.placementObject.position.y += 0.5;
+        
+        // 计算物品的实际高度，确保底部在地面上方
+        const voxels = this.placementObject.userData.originalVoxels;
+        const scale = this.placementObject.scale.x;
+        
+        if (voxels && voxels.length > 0) {
+          // 找到Y坐标的最小值和最大值
+          let minY = voxels[0].y;
+          let maxY = voxels[0].y;
+          
+          voxels.forEach(voxel => {
+            minY = Math.min(minY, voxel.y);
+            maxY = Math.max(maxY, voxel.y);
+          });
+          
+          // 计算物品的实际高度（考虑缩放）
+          const objectHeight = (maxY - minY + 1) * 0.5 * scale;
+          
+          // 将物品的底部（minY）放置在地面上方
+          const bottomOffset = -minY * 0.5 * scale;
+          this.placementObject.position.y = intersects[0].point.y + bottomOffset + objectHeight / 2;
+        } else {
+          // 如果没有voxels数据，使用默认偏移
+          this.placementObject.position.y += 0.5;
+        }
       }
     } else if (this.isDragging && this.dragObject) {
       // 拖拽物体
@@ -682,12 +706,22 @@ const DeleteButton = ({ isVisible, onDelete, position }) => {
 };
 
 // 放置控制面板
-const PlacementPanel = ({ isVisible, scale, onScaleChange, onConfirm, onCancel }) => {
+// 修改：PlacementPanel 组件
+const PlacementPanel = ({ 
+  isVisible, 
+  scale, 
+  onScaleChange, 
+  onConfirmScale, // 新增的prop
+  onCancel,
+  isPrePlacement // 新增的prop
+}) => {
   if (!isVisible) return null;
 
   return (
-    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-4">
+    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-4 w-96">
       <h3 className="text-lg font-bold mb-3 text-center">📐 放置物品</h3>
+      
+      {/* 缩放滑块只在"选择倍数"阶段可用 */}
       <div className="flex items-center gap-4 mb-4">
         <label className="text-sm font-medium">缩放倍数:</label>
         <input
@@ -698,25 +732,33 @@ const PlacementPanel = ({ isVisible, scale, onScaleChange, onConfirm, onCancel }
           value={scale}
           onChange={(e) => onScaleChange(parseFloat(e.target.value))}
           className="flex-1"
+          disabled={!isPrePlacement} // 在移动阶段禁用滑块
         />
         <span className="text-sm font-medium w-10">{scale}x</span>
       </div>
+      
+      {/* 根据阶段显示不同的按钮 */}
       <div className="flex gap-2">
         <button
           onClick={onCancel}
-          className="flex-1 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+          className="flex-1 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
         >
           取消
         </button>
-        <button
-          onClick={onConfirm}
-          className="flex-1 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-        >
-          确认放置
-        </button>
+        {isPrePlacement && (
+          <button
+            onClick={onConfirmScale}
+            className="flex-1 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+          >
+            确认倍数并开始放置
+          </button>
+        )}
       </div>
+
       <div className="text-xs text-gray-600 mt-2 text-center">
-        移动鼠标选择位置 | 点击确认放置
+        {isPrePlacement 
+          ? "选择好倍数后，点击按钮开始在场景中放置。"
+          : "移动鼠标选择位置 | 点击场景地面确认最终放置。"}
       </div>
     </div>
   );
@@ -749,7 +791,12 @@ const VoxelWorldEditor = ({ apiService }) => {
   const [placementMode, setPlacementMode] = useState(false);
   const [placementScale, setPlacementScale] = useState(1);
   const [nextItemId, setNextItemId] = useState(1);
-
+  
+  // 新增：用于暂存待放置物品的数据
+  const [itemToPlace, setItemToPlace] = useState(null); 
+  // 新增：用于区分是选择倍数阶段，还是移动物体阶段
+  const [isPrePlacementPhase, setIsPrePlacementPhase] = useState(true);
+  
   // 选中和删除相关状态
   const [selectedObject, setSelectedObject] = useState(null);
   const [deleteButtonPosition, setDeleteButtonPosition] = useState({ x: 0, y: 0 });
@@ -1104,24 +1151,21 @@ const VoxelWorldEditor = ({ apiService }) => {
   };
 
   // 放置物品到场景
+  // 修改：handlePlaceItem 函数
   const handlePlaceItem = (item) => {
-    if (sceneManagerRef.current && !placementMode) {
-      setPlacementMode(true);
-      setPlacementScale(1);
+    // 如果已经在放置模式中，则不执行任何操作
+    if (sceneManagerRef.current && placementMode) return;
 
-      sceneManagerRef.current.enterPlacementMode(
-        item.voxels,
-        item.mass,
-        item.restitution,
-        placementScale,
-        (createdObject) => {
-          setPlacementMode(false);
-          if (createdObject) {
-            setSceneObjectCount(prev => prev + 1);
-          }
-        }
-      );
-    }
+    // 1. 存储待放置物品的数据
+    setItemToPlace(item);
+    // 2. 重置倍数
+    setPlacementScale(1);
+    // 3. 设置为"选择倍数"阶段
+    setIsPrePlacementPhase(true);
+    // 4. 打开放置面板 (进入放置模式)
+    setPlacementMode(true);
+    
+    // 关键：不再在这里调用 sceneManager.enterPlacementMode
   };
 
   // 添加预设物体
@@ -1209,6 +1253,30 @@ const VoxelWorldEditor = ({ apiService }) => {
     }
   };
 
+  // 新增：当用户在面板上确认倍数后，开始真正的放置阶段
+  const handleConfirmScaleAndBeginPlacement = () => {
+    if (!itemToPlace || !sceneManagerRef.current) return;
+
+    // 现在才调用SceneManager，创建预览物体
+    sceneManagerRef.current.enterPlacementMode(
+      itemToPlace.voxels,
+      itemToPlace.mass,
+      itemToPlace.restitution,
+      placementScale,
+      (createdObject) => {
+        // 这是最终放置成功后的回调
+        setPlacementMode(false);
+        setItemToPlace(null); // 清理暂存的物品数据
+        if (createdObject) {
+          setSceneObjectCount(prev => prev + 1);
+        }
+      }
+    );
+
+    // 切换到"移动物体"阶段
+    setIsPrePlacementPhase(false);
+  };
+
   // 更新放置缩放
   const handleScaleChange = (newScale) => {
     setPlacementScale(newScale);
@@ -1220,19 +1288,15 @@ const VoxelWorldEditor = ({ apiService }) => {
     }
   };
 
-  // 确认放置
-  const handleConfirmPlacement = () => {
-    if (sceneManagerRef.current) {
-      sceneManagerRef.current.handlePlacement();
-    }
-  };
 
-  // 取消放置
+
+  // 修改：handleCancelPlacement 函数
   const handleCancelPlacement = () => {
     if (sceneManagerRef.current) {
       sceneManagerRef.current.cancelPlacement();
     }
     setPlacementMode(false);
+    setItemToPlace(null); // 确保清理暂存的物品数据
   };
 
   // 清空画布并保存历史
@@ -1890,8 +1954,9 @@ const VoxelWorldEditor = ({ apiService }) => {
             isVisible={placementMode}
             scale={placementScale}
             onScaleChange={handleScaleChange}
-            onConfirm={handleConfirmPlacement}
+            onConfirmScale={handleConfirmScaleAndBeginPlacement} // 传递新的处理器
             onCancel={handleCancelPlacement}
+            isPrePlacement={isPrePlacementPhase} // 传递阶段状态
           />
         </div>
 
