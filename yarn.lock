@@ -6919,6 +6919,11 @@ jsonpointer@^5.0.0:
     object.assign "^4.1.4"
     object.values "^1.1.6"
 
+kd-tree-js@^0.0.1:
+  version "0.0.1"
+  resolved "https://registry.npmjs.org/kd-tree-js/-/kd-tree-js-0.0.1.tgz"
+  integrity sha512-GzZcWCzHEgIaiFTUOGuhxLOYoQIcwo4K4Jt+oCt8VLd6q5mtaGNzJteOq4IZ5CGt4lVhlka5Siz4Mnfkxv8/yA==
+
 keyv@^4.5.3:
   version "4.5.4"
   resolved "https://registry.npmjs.org/keyv/-/keyv-4.5.4.tgz"

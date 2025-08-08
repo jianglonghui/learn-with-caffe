@@ -1104,8 +1104,14 @@ const VoxelWorldEditor = ({ apiService }) => {
     setIsGlbOptionsModalOpen(false);
 
     try {
+      // 获取SceneManager的渲染器实例
+      const renderer = sceneManagerRef.current?.renderer;
+      if (!renderer) {
+        throw new Error('无法获取渲染器实例，请确保3D场景已正确初始化。');
+      }
+
       // 将分辨率和平滑次数一起作为选项传入
-      const voxels = await processGlbToVoxels(selectedGlbFile, { 
+      const voxels = await processGlbToVoxels(selectedGlbFile, renderer, { 
         resolution: glbResolution,
         smoothingIterations: glbSmoothing 
       });
