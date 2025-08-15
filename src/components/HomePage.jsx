@@ -424,9 +424,9 @@ const HomePage = () => {
                 onTouchEnd={handleTouchEnd}
             >
                 {/* 欢迎信息 */}
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg text-white p-6 mb-6">
+                <div className="bg-black rounded-lg text-white p-6 mb-6">
                     <h1 className="text-2xl font-bold mb-2">欢迎来到知识分享社区</h1>
-                    <p className="text-blue-100">
+                    <p className="text-gray-300">
                         这里有调香师、古籍修复师等小众职业者的独特见解，
                         也有用小知识解决生活难题的温暖故事。
                         每个人都是某个领域的"专家"！
@@ -434,7 +434,7 @@ const HomePage = () => {
                     <button 
                         onClick={handleManualRefresh}
                         disabled={isRefreshing}
-                        className="mt-3 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                        className="mt-3 bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
                     >
                         <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
                         <span>刷新内容</span>

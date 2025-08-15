@@ -14,7 +14,19 @@ const ResultsDisplay = memo(() => {
         let correct = 0;
         state.questions.forEach(q => {
             const answer = state.answers[q.id];
-            if (answer?.selectedOption === q.correctAnswer) {
+            // 如果答案是文本，需要找到对应的索引；如果是索引，直接比较
+            let isCorrect = false;
+            if (answer?.selectedOption !== undefined) {
+                if (typeof answer.selectedOption === 'string' && q.options) {
+                    // 答案是文本，找到对应的索引
+                    const selectedIndex = q.options.indexOf(answer.selectedOption);
+                    isCorrect = selectedIndex === q.correctAnswer;
+                } else {
+                    // 答案是索引，直接比较
+                    isCorrect = answer.selectedOption === q.correctAnswer;
+                }
+            }
+            if (isCorrect) {
                 correct++;
             }
         });
@@ -52,7 +64,15 @@ const ResultsDisplay = memo(() => {
             questions: state.questions.map(q => ({
                 question: q.question,
                 difficulty: q.difficulty,
-                correct: state.answers[q.id]?.selectedOption === q.correctAnswer
+                correct: (() => {
+                    const answer = state.answers[q.id];
+                    if (!answer || answer.selectedOption === undefined) return false;
+                    if (typeof answer.selectedOption === 'string' && q.options) {
+                        const selectedIndex = q.options.indexOf(answer.selectedOption);
+                        return selectedIndex === q.correctAnswer;
+                    }
+                    return answer.selectedOption === q.correctAnswer;
+                })()
             }))
         };
 
@@ -139,7 +159,18 @@ const ResultsDisplay = memo(() => {
                     <div className="space-y-4">
                         {state.questions.map((question, index) => {
                             const answer = state.answers[question.id];
-                            const isCorrect = answer?.selectedOption === question.correctAnswer;
+                            // 计算是否正确，处理文本和索引两种情况
+                            let isCorrect = false;
+                            if (answer?.selectedOption !== undefined) {
+                                if (typeof answer.selectedOption === 'string' && question.options) {
+                                    // 答案是文本，找到对应的索引
+                                    const selectedIndex = question.options.indexOf(answer.selectedOption);
+                                    isCorrect = selectedIndex === question.correctAnswer;
+                                } else {
+                                    // 答案是索引，直接比较
+                                    isCorrect = answer.selectedOption === question.correctAnswer;
+                                }
+                            }
                             const timeSpent = state.answerTimes[question.id];
 
                             return (
@@ -181,14 +212,20 @@ const ResultsDisplay = memo(() => {
                                         <div className="flex items-center text-sm">
                                             <span className="text-gray-600 mr-2">你的答案:</span>
                                             <span className={isCorrect ? 'text-green-600' : 'text-red-600'}>
-                                                {answer?.selectedOption || '未回答'}
+                                                {answer?.selectedOption !== undefined 
+                                                    ? (question.options && question.options[answer.selectedOption] 
+                                                        ? question.options[answer.selectedOption] 
+                                                        : answer.selectedOption) 
+                                                    : '未回答'}
                                             </span>
                                         </div>
                                         {!isCorrect && (
                                             <div className="flex items-center text-sm">
                                                 <span className="text-gray-600 mr-2">正确答案:</span>
                                                 <span className="text-green-600">
-                                                    {question.correctAnswer}
+                                                    {question.options && question.options[question.correctAnswer] 
+                                                        ? question.options[question.correctAnswer] 
+                                                        : question.correctAnswer}
                                                 </span>
                                             </div>
                                         )}

@@ -13,9 +13,11 @@ const TopicConfirmation = memo(() => {
     // 从URL参数获取主题
     const topicFromUrl = decodeURIComponent(currentParams.topic || '');
 
-    // 当组件加载时，如果有URL参数的主题但没有设置状态中的主题，则设置并生成选项
+    // 当组件加载时，如果有URL参数的主题，则清空旧状态并设置新主题
     useEffect(() => {
-        if (topicFromUrl && !state.selectedTopic && !state.customTopic) {
+        if (topicFromUrl) {
+            // 清空旧的主题状态，确保使用URL中的新主题
+            dispatch({ type: 'SET_TOPIC', topic: '' });
             dispatch({ type: 'SET_CUSTOM_TOPIC', topic: topicFromUrl });
             
             // 自动生成主题确认选项
@@ -27,7 +29,7 @@ const TopicConfirmation = memo(() => {
                 console.error('生成主题选项失败:', error);
             });
         }
-    }, [topicFromUrl, state.selectedTopic, state.customTopic, dispatch, api]);
+    }, [topicFromUrl, dispatch]);
 
     // 获取当前显示的主题
     const currentTopic = state.selectedTopic || state.customTopic || topicFromUrl;
