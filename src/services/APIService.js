@@ -361,6 +361,120 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
         return this.request(prompt, { maxTokens: 2500 });
     }
 
+    async generateUserPosts(userName, expertise, context, count = 5) {
+        const prompt = `为"${userName}"（${expertise}）生成${count}条个人推文。
+
+用户背景：${context}
+
+严格按照以下JSON格式返回：
+{
+  "posts": [
+    {
+      "id": "unique_id",
+      "content": "推文内容（保持该用户的语言风格和专业特色，100-200字）",
+      "image": "可选的emoji图标",
+      "timestamp": "时间（如：2小时前、昨天、3天前）",
+      "type": "knowledge/trivia/tip/experience/achievement"
+    }
+  ]
+}
+
+要求：
+1. 保持用户的专业特色和个人风格
+2. 内容要连贯，体现专业性
+3. 时间要有变化，显示不同时期的推文
+4. 内容类型要多样化
+
+DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
+        return this.request(prompt, { maxTokens: 3000 });
+    }
+
+    async generateRecommendedUsers(recommendationData, count = 4) {
+        const { subjects, professions, verificationRate, diversityLevel, userPreferences } = recommendationData;
+        
+        const prompt = `基于用户的关注偏好，生成${count}个推荐的知识博主。
+
+用户偏好分析：
+- 喜欢的学科：${subjects.join('、')}
+- 喜欢的职业类型：${professions.join('、')}
+- 认证博主偏好：${Math.round(verificationRate * 100)}%
+- 多样性需求：${diversityLevel}
+
+要求生成相似但不重复的博主，${diversityLevel === 'high' ? '加强多样性，引入新领域' : '重点关注用户已关注的领域'}。
+
+严格按照以下JSON格式返回：
+{
+  "users": [
+    {
+      "name": "博主名称",
+      "avatar": "emoji头像",
+      "expertise": "专业身份",
+      "verified": true/false,
+      "bio": "个人简介（50-80字，体现专业特色和个人魅力）",
+      "tags": ["标签1", "标签2", "标签3"],
+      "specialties": ["特长1", "特长2"],
+      "reason": "推荐理由（为什么推荐给这个用户）"
+    }
+  ]
+}
+
+示例：
+- 如果用户关注调香师和古籍修复师，可推荐茶艺师、陶艺大师等传统工艺相关博主
+- 如果用户关注心理学教授，可推荐教育学专家、社会学研究员等
+- 如果用户喜欢认证博主，优先推荐有认证的专家
+
+生成的博主要有真实感和个性，避免重复现有用户。
+
+DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
+        
+        return this.request(prompt, { maxTokens: 3000 });
+    }
+
+    async generateKnowledgeFeed(topics = [], count = 5) {
+        const topicsString = topics.length > 0 ? topics.join('、') : '随机领域';
+        const prompt = `生成${count}条多样化的社交分享内容。要包含以下几种类型的分享者：
+
+1. 学术专家（占30%）：分享专业知识
+2. 小众职业者（占30%）：如调香师、手语翻译、宠物行为训练师、古籍修复师、潜水教练、咖啡品鉴师等
+3. 生活达人（占20%）：分享用小知识改善生活的经历
+4. 普通人小成就（占20%）：分享学以致用的小故事
+
+内容涵盖：${topicsString}
+
+严格按照以下JSON格式返回：
+{
+  "posts": [
+    {
+      "id": "unique_id",
+      "expertName": "分享者名称（如：调香师小雅、咖啡师老王、退休教师李奶奶）",
+      "expertAvatar": "emoji图标",
+      "expertise": "身份/职业（如：调香师、生活达人、化学爱好者）",
+      "verified": true/false,
+      "content": "分享内容（100-200字，要有故事性和真实感）",
+      "image": "可选的emoji图标",
+      "topic": "主题标签",
+      "type": "knowledge/trivia/tip/experience/achievement",
+      "timestamp": "刚刚"
+    }
+  ]
+}
+
+内容示例：
+- 调香师："今天有客人想要'雨后森林'的味道。我用了雪松、苔藓和一点柠檬草，她说闻到就想起了童年在外婆家的夏天..."
+- 手语翻译："你知道吗？手语中的'谢谢'在不同国家完全不同。中国是手掌从下巴向前推，而美国是..."
+- 退休教师："用了物理课上的杠杆原理，终于打开了卡了3年的老抽屉！原来支点的位置这么重要..."
+- 咖啡师："今天发现了个小技巧：咖啡闷蒸时画个'十'字，气体释放更均匀，做出的手冲风味提升了好多！"
+
+要求：
+1. 内容要有温度、有故事感
+2. 小众职业要真实存在，描述要专业
+3. 生活小成就要接地气，让人有共鸣
+4. 混合不同类型，营造多元社区氛围
+
+DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
+        return this.request(prompt, { maxTokens: 4000 });
+    }
+
     async generateWorkshopSimulator(selectedConcepts, selectedKnowledgePoints, topic) {
         const prompt = `为"${topic}"主题创建智慧工坊模拟器，基于以下选中的概念和知识点：
 

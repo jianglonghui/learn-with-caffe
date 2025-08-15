@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import PhysicsEngine from './physics-engine';
 import { generateVoxelsFromPrompt } from './ai-generator';
+import { processGlbToVoxels } from './glb-processor';
 import {
   TOOLS,
   COLORS,
@@ -762,6 +763,11 @@ const VoxelWorldEditor = ({ apiService }) => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
 
+  // GLB处理相关的状态
+  const fileInputRef = useRef(null); // Ref for the hidden file input
+  const [isProcessingGlb, setIsProcessingGlb] = useState(false);
+  const [glbError, setGlbError] = useState(null);
+
   // 初始化3D场景和历史记录
   useEffect(() => {
     console.log('VoxelWorldEditor: 初始化3D场景');
@@ -1024,6 +1030,39 @@ const VoxelWorldEditor = ({ apiService }) => {
     } finally {
       setIsAiLoading(false);
     }
+  };
+
+  // GLB文件选择的事件处理器
+  const handleGlbFileSelected = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsProcessingGlb(true);
+    setGlbError(null);
+
+    try {
+      // 调用我们的GLB处理器核心逻辑
+      const voxels = await processGlbToVoxels(file, { resolution: 25 });
+
+      if (voxels && voxels.length > 0) {
+        // 使用通用的addItemToBackpack函数
+        addItemToBackpack(voxels);
+        alert(`成功从GLB文件生成了 ${voxels.length} 个方块的物品！`);
+      } else {
+        setGlbError("无法从GLB文件中生成任何方块。模型可能太小或格式有问题。");
+      }
+    } catch (error) {
+      setGlbError(error.message || "处理GLB文件时发生未知错误。");
+    } finally {
+      setIsProcessingGlb(false);
+      // 重置文件输入，以便用户可以再次选择相同的文件
+      event.target.value = null; 
+    }
+  };
+
+  // 点击导入按钮时触发隐藏的文件输入框
+  const handleImportGlbClick = () => {
+    fileInputRef.current?.click();
   };
 
   // 创建物品到背包
@@ -1560,7 +1599,7 @@ const VoxelWorldEditor = ({ apiService }) => {
                 </div>
 
                 {/* 操作按钮 */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={handleClearCanvas}
                     className="flex-1 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium"
@@ -1585,7 +1624,23 @@ const VoxelWorldEditor = ({ apiService }) => {
                   >
                     ✨ AI生成
                   </button>
+                  {/* 新增：GLB导入按钮 */}
+                  <button
+                    onClick={handleImportGlbClick}
+                    disabled={isProcessingGlb}
+                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 font-medium disabled:bg-orange-300"
+                    title="从.glb文件导入模型"
+                  >
+                    {isProcessingGlb ? '处理中...' : '📦 导入GLB'}
+                  </button>
                 </div>
+
+                {/* 新增：全局错误提示 */}
+                {glbError && (
+                  <div className="mt-4 p-2 bg-red-100 text-red-700 rounded text-sm">
+                    <strong>导入错误:</strong> {glbError}
+                  </div>
+                )}
               </div>
 
               {/* 画布容器 */}
@@ -1765,6 +1820,15 @@ const VoxelWorldEditor = ({ apiService }) => {
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
         onGenerate={handleAiGenerate}
+      />
+
+      {/* 新增：隐藏的文件输入框，用于GLB导入 */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleGlbFileSelected}
+        accept=".glb"
+        style={{ display: 'none' }}
       />
     </div>
   );

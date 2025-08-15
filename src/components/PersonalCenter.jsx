@@ -1,20 +1,39 @@
 import React, { memo } from 'react';
-import { User, BookOpen, Clock, Target, Edit, Trash2, Eye, Play, Calendar } from 'lucide-react';
+import { User, BookOpen, Clock, Target, Edit, Trash2, Eye, Play, Calendar, Users, Heart } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useNavigation } from '../hooks/useNavigation';
 import StorageManager from '../services/StorageManager';
+import contentStorage from '../services/ContentStorage';
+import { useNavigate } from 'react-router-dom';
 
 const PersonalCenter = memo(() => {
   const { state, dispatch } = useAppContext();
   const { navigateTo } = useNavigation();
+  const navigate = useNavigate();
   const [learningHistory, setLearningHistory] = React.useState([]);
   const [editingId, setEditingId] = React.useState(null);
   const [editingName, setEditingName] = React.useState('');
+  const [activeTab, setActiveTab] = React.useState('history');
+  const [followingUsers, setFollowingUsers] = React.useState([]);
+  const [likedPosts, setLikedPosts] = React.useState([]);
+  const [bookmarkedPosts, setBookmarkedPosts] = React.useState([]);
 
-  // 加载学习历史
+  // 加载所有数据
   React.useEffect(() => {
+    // 学习历史
     const history = StorageManager.getLearningHistory();
     setLearningHistory(history);
+    
+    // 关注的用户
+    const following = contentStorage.getFollowing();
+    const users = following.map(userId => contentStorage.getUser(userId)).filter(Boolean);
+    setFollowingUsers(users);
+    
+    // 加载点赞和收藏的内容（这里简化处理，实际可以根据需要获取完整帖子信息）
+    const liked = contentStorage.exportData().likes;
+    const bookmarked = contentStorage.exportData().bookmarks;
+    setLikedPosts(liked);
+    setBookmarkedPosts(bookmarked);
   }, []);
 
   const formatDate = (dateString) => {
@@ -125,6 +144,17 @@ const PersonalCenter = memo(() => {
     }
   };
 
+  const handleUnfollow = (userId) => {
+    if (window.confirm('确定要取消关注吗？')) {
+      contentStorage.unfollowUser(userId);
+      setFollowingUsers(prev => prev.filter(user => user.id !== userId));
+    }
+  };
+
+  const handleUserClick = (userId) => {
+    navigate(`/user/${userId}`);
+  };
+
   // 计算统计数据
   const totalSessions = learningHistory.length;
   const completedSessions = learningHistory.filter(record => 
@@ -138,68 +168,109 @@ const PersonalCenter = memo(() => {
         {/* 头部 */}
         <div className="text-center mb-12">
           <User className="w-8 h-8 text-black mx-auto mb-6" />
-          <h2 className="text-2xl font-semibold text-black mb-4">个人学习中心</h2>
+          <h2 className="text-2xl font-semibold text-black mb-4">个人中心</h2>
           <p className="text-gray-600 text-lg leading-relaxed">
-            管理你的学习记录和进度
+            管理你的学习记录、关注和收藏
           </p>
         </div>
 
+        {/* 标签导航 */}
+        <div className="flex justify-center mb-8">
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'history'
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              学习历史
+            </button>
+            <button
+              onClick={() => setActiveTab('following')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'following'
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              我的关注 ({followingUsers.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('favorites')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'favorites'
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              收藏内容 ({bookmarkedPosts.length})
+            </button>
+          </div>
+        </div>
+
         {/* 顶部操作 */}
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
-          <h3 className="text-xl font-semibold text-black mb-4 sm:mb-0">学习历史</h3>
-          <div className="flex space-x-3">
-            {learningHistory.length > 0 && (
+        {activeTab === 'history' && (
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
+            <h3 className="text-xl font-semibold text-black mb-4 sm:mb-0">学习历史</h3>
+            <div className="flex space-x-3">
+              {learningHistory.length > 0 && (
+                <button
+                  onClick={handleClearHistory}
+                  className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm border border-red-200"
+                >
+                  清除历史
+                </button>
+              )}
               <button
-                onClick={handleClearHistory}
-                className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm border border-red-200"
+                onClick={() => navigate('/')}
+                className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
               >
-                清除历史
+                返回主页
               </button>
-            )}
-            <button
-              onClick={() => navigateTo.home()}
-              className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-            >
-              返回主页
-            </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 统计信息 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="border border-gray-200 rounded-xl p-6 text-center">
-            <BookOpen className="w-6 h-6 text-black mx-auto mb-3" />
-            <div className="text-2xl font-bold text-black mb-2">{totalSessions}</div>
-            <div className="text-gray-600 text-sm">学习会话</div>
-          </div>
+        {/* 内容区域 */}
+        {activeTab === 'history' && (
+          <>
+            {/* 统计信息 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="border border-gray-200 rounded-xl p-6 text-center">
+                <BookOpen className="w-6 h-6 text-black mx-auto mb-3" />
+                <div className="text-2xl font-bold text-black mb-2">{totalSessions}</div>
+                <div className="text-gray-600 text-sm">学习会话</div>
+              </div>
 
-          <div className="border border-gray-200 rounded-xl p-6 text-center">
-            <Target className="w-6 h-6 text-black mx-auto mb-3" />
-            <div className="text-2xl font-bold text-black mb-2">{completedSessions}</div>
-            <div className="text-gray-600 text-sm">已完成</div>
-          </div>
+              <div className="border border-gray-200 rounded-xl p-6 text-center">
+                <Target className="w-6 h-6 text-black mx-auto mb-3" />
+                <div className="text-2xl font-bold text-black mb-2">{completedSessions}</div>
+                <div className="text-gray-600 text-sm">已完成</div>
+              </div>
 
-          <div className="border border-gray-200 rounded-xl p-6 text-center">
-            <Clock className="w-6 h-6 text-black mx-auto mb-3" />
-            <div className="text-2xl font-bold text-black mb-2">{totalTopics}</div>
-            <div className="text-gray-600 text-sm">学习主题</div>
-          </div>
-        </div>
+              <div className="border border-gray-200 rounded-xl p-6 text-center">
+                <Clock className="w-6 h-6 text-black mx-auto mb-3" />
+                <div className="text-2xl font-bold text-black mb-2">{totalTopics}</div>
+                <div className="text-gray-600 text-sm">学习主题</div>
+              </div>
+            </div>
 
-        {/* 学习记录列表 */}
-        {learningHistory.length === 0 ? (
-          <div className="text-center py-12">
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">还没有学习记录</h3>
-            <p className="text-gray-500 mb-6">开始你的第一次学习吧！</p>
-            <button
-              onClick={() => navigateTo.home()}
-              className="bg-black text-white py-3 px-6 rounded-xl font-medium hover:bg-gray-800 transition-colors duration-200"
-            >
-              开始学习
-            </button>
-          </div>
-        ) : (
+            {/* 学习记录列表 */}
+            {learningHistory.length === 0 ? (
+              <div className="text-center py-12">
+                <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">还没有学习记录</h3>
+                <p className="text-gray-500 mb-6">开始你的第一次学习吧！</p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="bg-black text-white py-3 px-6 rounded-xl font-medium hover:bg-gray-800 transition-colors duration-200"
+                >
+                  开始学习
+                </button>
+              </div>
+            ) : (
           <div className="space-y-4">
             {learningHistory.map((record) => (
               <div key={record.id} className="border border-gray-200 rounded-xl p-6">
@@ -294,6 +365,94 @@ const PersonalCenter = memo(() => {
                 </div>
               </div>
             ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 关注列表 */}
+        {activeTab === 'following' && (
+          <div>
+            {followingUsers.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">还没有关注任何人</h3>
+                <p className="text-gray-500 mb-6">去发现一些有趣的分享者吧！</p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="bg-black text-white py-3 px-6 rounded-xl font-medium hover:bg-gray-800 transition-colors duration-200"
+                >
+                  去发现
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {followingUsers.map((user) => (
+                  <div key={user.id} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-center mb-4">
+                      <div className="text-3xl mr-3">{user.avatar}</div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-black flex items-center">
+                          {user.name}
+                          {user.verified && <span className="text-blue-500 ml-1">✓</span>}
+                        </h4>
+                        <p className="text-sm text-gray-600">{user.expertise}</p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-gray-700 mb-4 line-clamp-2">{user.bio}</p>
+                    
+                    <div className="flex justify-between items-center text-xs text-gray-500 mb-4">
+                      <span>{user.followers?.toLocaleString()} 关注者</span>
+                      <span>{user.postsCount} 推文</span>
+                    </div>
+
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleUserClick(user.id)}
+                        className="flex-1 bg-black text-white py-2 px-4 rounded-lg text-sm hover:bg-gray-800 transition-colors"
+                      >
+                        查看主页
+                      </button>
+                      <button
+                        onClick={() => handleUnfollow(user.id)}
+                        className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm border border-red-200"
+                      >
+                        取消关注
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 收藏内容 */}
+        {activeTab === 'favorites' && (
+          <div>
+            {bookmarkedPosts.length === 0 ? (
+              <div className="text-center py-12">
+                <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">还没有收藏任何内容</h3>
+                <p className="text-gray-500 mb-6">收藏你喜欢的知识分享吧！</p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="bg-black text-white py-3 px-6 rounded-xl font-medium hover:bg-gray-800 transition-colors duration-200"
+                >
+                  去探索
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">收藏功能开发中</h3>
+                <p className="text-gray-500 mb-6">敬请期待更完善的收藏管理功能！</p>
+                <div className="text-sm text-gray-600">
+                  当前收藏数量: {bookmarkedPosts.length}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

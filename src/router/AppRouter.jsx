@@ -6,6 +6,8 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import AppLayout from '../components/layout/AppLayout';
 
 // 导入所有页面组件
+import HomePage from '../components/HomePage';
+import UserProfile from '../components/UserProfile';
 import TopicSelector from '../components/TopicSelector';
 import TopicConfirmation from '../components/TopicConfirmation';
 import StoryDisplay from '../components/StoryDisplay';
@@ -24,8 +26,14 @@ const AppRouter = () => {
                     <Suspense fallback={<LoadingSpinner />}>
                         <AppLayout>
                             <Routes>
-                                {/* 主页 - 主题选择 */}
-                                <Route path="/" element={<TopicSelector />} />
+                                {/* 主页 - 社交学习feed */}
+                                <Route path="/" element={<HomePage />} />
+
+                                {/* 用户个人主页 */}
+                                <Route path="/user/:userId" element={<UserProfile />} />
+
+                                {/* 主题选择页面 */}
+                                <Route path="/topics" element={<TopicSelector />} />
 
                                 {/* 主题确认 */}
                                 <Route path="/confirm/:topic" element={<TopicConfirmation />} />
