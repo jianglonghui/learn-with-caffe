@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坐标计算修复测试</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 3px solid #00ff00;
+            background-color: #2a2a2a;
+        }
+        .success {
+            color: #00ff00;
+        }
+        .error {
+            color: #ff0000;
+        }
+        .info {
+            color: #ffff00;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 坐标计算系统性偏差修复测试</h1>
+    <div id="test-output"></div>
+
+    <script type="module">
+        import { runCoordinateTests } from './src/glb-test.js';
+        
+        // 重定向 console.log 到页面
+        const originalLog = console.log;
+        const testOutput = document.getElementById('test-output');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const div = document.createElement('div');
+            div.className = 'test-result';
+            div.textContent = args.join(' ');
+            testOutput.appendChild(div);
+        };
+        
+        // 运行测试
+        console.log('🚀 开始运行坐标计算修复测试...');
+        const results = runCoordinateTests();
+        
+        console.log('');
+        console.log('📋 修复总结:');
+        console.log('1. 将 Math.round() 替换为 Math.floor()');
+        console.log('2. 使用平移后的坐标系，确保所有坐标为正');
+        console.log('3. 在最后重新居中，使体素云中心回到 (0,0,0)');
+        console.log('4. 这样可以消除系统性偏差，确保对称模型的体素化结果也是对称的');
+    </script>
+</body>
+</html> 
