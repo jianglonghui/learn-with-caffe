@@ -3,10 +3,13 @@ class ContentStorage {
     constructor() {
         this.POSTS_KEY = 'knowledge_posts';
         this.USER_POSTS_KEY = 'user_posts';
+        this.USER_BLOG_POSTS_KEY = 'user_blog_posts';
         this.USERS_KEY = 'users_data';
         this.FOLLOWING_KEY = 'following_list';
         this.LIKES_KEY = 'liked_posts';
         this.BOOKMARKS_KEY = 'bookmarked_posts';
+        this.RECOMMENDATIONS_KEY = 'recommendations_cache';
+        this.CHEERS_KEY = 'cheers_data';
         this.initializeStorage();
     }
 
@@ -29,6 +32,15 @@ class ContentStorage {
         }
         if (!localStorage.getItem(this.BOOKMARKS_KEY)) {
             localStorage.setItem(this.BOOKMARKS_KEY, JSON.stringify([]));
+        }
+        if (!localStorage.getItem(this.USER_BLOG_POSTS_KEY)) {
+            localStorage.setItem(this.USER_BLOG_POSTS_KEY, JSON.stringify({}));
+        }
+        if (!localStorage.getItem(this.RECOMMENDATIONS_KEY)) {
+            localStorage.setItem(this.RECOMMENDATIONS_KEY, JSON.stringify({}));
+        }
+        if (!localStorage.getItem(this.CHEERS_KEY)) {
+            localStorage.setItem(this.CHEERS_KEY, JSON.stringify({}));
         }
         
         // 修复损坏的用户数据
@@ -160,6 +172,44 @@ class ContentStorage {
         const userPosts = JSON.parse(localStorage.getItem(this.USER_POSTS_KEY) || '{}');
         const posts = userPosts[userId] || [];
         return posts.slice(offset, offset + limit);
+    }
+
+    // 保存用户博客文章
+    saveUserBlogPosts(userId, blogPosts, append = false) {
+        const userBlogPosts = JSON.parse(localStorage.getItem(this.USER_BLOG_POSTS_KEY) || '{}');
+        
+        if (!userBlogPosts[userId]) {
+            userBlogPosts[userId] = [];
+        }
+        
+        if (append) {
+            // 去重
+            const existingIds = new Set(userBlogPosts[userId].map(p => p.id));
+            const uniqueNewPosts = blogPosts.filter(p => !existingIds.has(p.id));
+            userBlogPosts[userId] = [...userBlogPosts[userId], ...uniqueNewPosts];
+        } else {
+            userBlogPosts[userId] = blogPosts;
+        }
+        
+        // 每个用户限制50篇博客
+        if (userBlogPosts[userId].length > 50) {
+            userBlogPosts[userId] = userBlogPosts[userId].slice(0, 50);
+        }
+        
+        localStorage.setItem(this.USER_BLOG_POSTS_KEY, JSON.stringify(userBlogPosts));
+        return userBlogPosts[userId];
+    }
+
+    // 获取用户博客文章
+    getUserBlogPosts(userId) {
+        const userBlogPosts = JSON.parse(localStorage.getItem(this.USER_BLOG_POSTS_KEY) || '{}');
+        return userBlogPosts[userId] || [];
+    }
+
+    // 获取单篇博客文章
+    getUserBlogPost(userId, postId) {
+        const blogPosts = this.getUserBlogPosts(userId);
+        return blogPosts.find(post => post.id === postId);
     }
 
     // 获取用户信息
@@ -453,12 +503,17 @@ class ContentStorage {
             if (user) {
                 this.updateUser(userId, { followers: user.followers + 1 });
             }
+            
+            // 关注状态变化，清除推荐缓存
+            this.clearRecommendationsCache();
+            console.log('👤 关注用户后清除推荐缓存:', userId);
         }
         return following;
     }
 
     unfollowUser(userId) {
         let following = JSON.parse(localStorage.getItem(this.FOLLOWING_KEY) || '[]');
+        const wasFollowing = following.includes(userId);
         following = following.filter(id => id !== userId);
         localStorage.setItem(this.FOLLOWING_KEY, JSON.stringify(following));
         
@@ -466,6 +521,12 @@ class ContentStorage {
         const user = this.getUser(userId);
         if (user) {
             this.updateUser(userId, { followers: Math.max(0, user.followers - 1) });
+        }
+        
+        // 如果确实取消了关注，清除推荐缓存
+        if (wasFollowing) {
+            this.clearRecommendationsCache();
+            console.log('👤 取消关注用户后清除推荐缓存:', userId);
         }
         
         return following;
@@ -543,7 +604,9 @@ class ContentStorage {
             users: JSON.parse(localStorage.getItem(this.USERS_KEY) || '{}'),
             following: JSON.parse(localStorage.getItem(this.FOLLOWING_KEY) || '[]'),
             likes: JSON.parse(localStorage.getItem(this.LIKES_KEY) || '[]'),
-            bookmarks: JSON.parse(localStorage.getItem(this.BOOKMARKS_KEY) || '[]')
+            bookmarks: JSON.parse(localStorage.getItem(this.BOOKMARKS_KEY) || '[]'),
+            recommendations: JSON.parse(localStorage.getItem(this.RECOMMENDATIONS_KEY) || '{}'),
+            cheers: JSON.parse(localStorage.getItem(this.CHEERS_KEY) || '{}')
         };
     }
 
@@ -555,9 +618,300 @@ class ContentStorage {
         if (data.following) localStorage.setItem(this.FOLLOWING_KEY, JSON.stringify(data.following));
         if (data.likes) localStorage.setItem(this.LIKES_KEY, JSON.stringify(data.likes));
         if (data.bookmarks) localStorage.setItem(this.BOOKMARKS_KEY, JSON.stringify(data.bookmarks));
+        if (data.recommendations) localStorage.setItem(this.RECOMMENDATIONS_KEY, JSON.stringify(data.recommendations));
+        if (data.cheers) localStorage.setItem(this.CHEERS_KEY, JSON.stringify(data.cheers));
+    }
+
+    // ==================== 推荐缓存管理 ====================
+    
+    // 生成关注状态的hash值，用于检测关注变化
+    generateFollowingHash() {
+        const following = this.getFollowing().sort();
+        return this.simpleHash(JSON.stringify(following));
+    }
+
+    // 保存推荐结果到缓存
+    saveRecommendations(users, userPreferences) {
+        const cache = {
+            users,
+            userPreferences,
+            followingHash: this.generateFollowingHash(),
+            timestamp: Date.now(),
+            // 缓存有效期：24小时
+            expiresAt: Date.now() + (24 * 60 * 60 * 1000)
+        };
+        
+        localStorage.setItem(this.RECOMMENDATIONS_KEY, JSON.stringify(cache));
+        console.log('✅ 推荐结果已缓存:', { 
+            用户数量: users.length, 
+            关注状态hash: cache.followingHash,
+            过期时间: new Date(cache.expiresAt).toLocaleString()
+        });
+    }
+
+    // 获取缓存的推荐结果
+    getCachedRecommendations() {
+        try {
+            const cached = JSON.parse(localStorage.getItem(this.RECOMMENDATIONS_KEY) || '{}');
+            
+            // 检查缓存是否为空
+            if (!cached.users || !cached.timestamp) {
+                console.log('📭 推荐缓存为空');
+                return null;
+            }
+
+            // 检查缓存是否过期
+            if (Date.now() > cached.expiresAt) {
+                console.log('⏰ 推荐缓存已过期，需要重新生成');
+                this.clearRecommendationsCache();
+                return null;
+            }
+
+            // 检查关注状态是否发生变化
+            const currentHash = this.generateFollowingHash();
+            if (cached.followingHash !== currentHash) {
+                console.log('🔄 关注状态已变化，缓存失效:', {
+                    缓存时hash: cached.followingHash,
+                    当前hash: currentHash
+                });
+                this.clearRecommendationsCache();
+                return null;
+            }
+
+            console.log('✅ 使用缓存的推荐结果:', {
+                用户数量: cached.users.length,
+                缓存时间: new Date(cached.timestamp).toLocaleString(),
+                剩余有效期: Math.round((cached.expiresAt - Date.now()) / (1000 * 60 * 60)) + '小时'
+            });
+            
+            return {
+                users: cached.users,
+                userPreferences: cached.userPreferences
+            };
+        } catch (error) {
+            console.error('❌ 读取推荐缓存失败:', error);
+            this.clearRecommendationsCache();
+            return null;
+        }
+    }
+
+    // 检查推荐缓存是否有效
+    isRecommendationsCacheValid() {
+        const cached = this.getCachedRecommendations();
+        return cached !== null;
+    }
+
+    // 清除推荐缓存
+    clearRecommendationsCache() {
+        localStorage.setItem(this.RECOMMENDATIONS_KEY, JSON.stringify({}));
+        console.log('🗑️ 推荐缓存已清除');
+    }
+
+    // 强制刷新推荐（清除缓存）
+    refreshRecommendations() {
+        this.clearRecommendationsCache();
+        console.log('🔄 强制刷新推荐，缓存已清除');
+    }
+    
+    // 获取缓存统计信息
+    getRecommendationsCacheInfo() {
+        try {
+            const cached = JSON.parse(localStorage.getItem(this.RECOMMENDATIONS_KEY) || '{}');
+            if (!cached.timestamp) {
+                return { hasCache: false };
+            }
+            
+            return {
+                hasCache: true,
+                userCount: cached.users?.length || 0,
+                cacheTime: new Date(cached.timestamp).toLocaleString(),
+                expiresAt: new Date(cached.expiresAt).toLocaleString(),
+                isValid: Date.now() < cached.expiresAt && cached.followingHash === this.generateFollowingHash(),
+                followingHash: cached.followingHash,
+                currentHash: this.generateFollowingHash()
+            };
+        } catch {
+            return { hasCache: false };
+        }
+    }
+
+    // ==================== 打Call功能管理 ====================
+    
+    // 获取今天的日期key
+    getTodayKey() {
+        const today = new Date();
+        return today.getFullYear() + '-' + 
+               String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+               String(today.getDate()).padStart(2, '0');
+    }
+
+    // 为博主打call
+    cheerForUser(userId, userName) {
+        try {
+            const todayKey = this.getTodayKey();
+            const cheersData = JSON.parse(localStorage.getItem(this.CHEERS_KEY) || '{}');
+            
+            // 初始化今日数据结构
+            if (!cheersData[todayKey]) {
+                cheersData[todayKey] = {};
+            }
+            
+            // 初始化用户数据
+            if (!cheersData[todayKey][userId]) {
+                cheersData[todayKey][userId] = {
+                    name: userName,
+                    count: 0,
+                    lastCheerTime: Date.now()
+                };
+            }
+            
+            // 增加打call次数
+            cheersData[todayKey][userId].count += 1;
+            cheersData[todayKey][userId].lastCheerTime = Date.now();
+            
+            // 保存数据
+            localStorage.setItem(this.CHEERS_KEY, JSON.stringify(cheersData));
+            
+            console.log(`🎉 为 ${userName} 打call! 今日总数: ${cheersData[todayKey][userId].count}`);
+            
+            return cheersData[todayKey][userId].count;
+        } catch (error) {
+            console.error('打call失败:', error);
+            return 0;
+        }
+    }
+
+    // 获取用户今日打call次数
+    getUserTodayCheerCount(userId) {
+        try {
+            const todayKey = this.getTodayKey();
+            const cheersData = JSON.parse(localStorage.getItem(this.CHEERS_KEY) || '{}');
+            
+            return cheersData[todayKey]?.[userId]?.count || 0;
+        } catch (error) {
+            console.error('获取打call次数失败:', error);
+            return 0;
+        }
+    }
+
+    // 获取今日打call排行榜（前3名）
+    getTodayCheerLeaderboard() {
+        try {
+            const todayKey = this.getTodayKey();
+            const cheersData = JSON.parse(localStorage.getItem(this.CHEERS_KEY) || '{}');
+            const todayData = cheersData[todayKey] || {};
+            
+            // 转换为数组并排序
+            const leaderboard = Object.entries(todayData)
+                .map(([userId, data]) => ({
+                    userId,
+                    name: data.name,
+                    count: data.count,
+                    lastCheerTime: data.lastCheerTime
+                }))
+                .sort((a, b) => {
+                    // 先按打call次数排序，如果次数相同则按最后打call时间排序
+                    if (b.count !== a.count) {
+                        return b.count - a.count;
+                    }
+                    return b.lastCheerTime - a.lastCheerTime;
+                })
+                .slice(0, 3); // 只取前3名
+
+            // 补充用户头像信息
+            const enrichedLeaderboard = leaderboard.map(item => {
+                const user = this.getUser(item.userId);
+                return {
+                    ...item,
+                    avatar: user?.avatar || '👤',
+                    expertise: user?.expertise || '用户'
+                };
+            });
+
+            console.log('🏆 今日打call排行榜:', enrichedLeaderboard);
+            return enrichedLeaderboard;
+        } catch (error) {
+            console.error('获取排行榜失败:', error);
+            return [];
+        }
+    }
+
+    // 获取全部打call统计数据
+    getAllCheerStats() {
+        try {
+            const cheersData = JSON.parse(localStorage.getItem(this.CHEERS_KEY) || '{}');
+            const stats = {
+                totalDays: Object.keys(cheersData).length,
+                todayTotal: 0,
+                topUsers: []
+            };
+
+            const todayKey = this.getTodayKey();
+            const todayData = cheersData[todayKey] || {};
+            
+            // 计算今日总打call数
+            stats.todayTotal = Object.values(todayData)
+                .reduce((sum, userData) => sum + userData.count, 0);
+
+            // 计算所有时间的用户排名
+            const allTimeStats = {};
+            Object.values(cheersData).forEach(dayData => {
+                Object.entries(dayData).forEach(([userId, userData]) => {
+                    if (!allTimeStats[userId]) {
+                        allTimeStats[userId] = {
+                            name: userData.name,
+                            totalCount: 0
+                        };
+                    }
+                    allTimeStats[userId].totalCount += userData.count;
+                });
+            });
+
+            stats.topUsers = Object.entries(allTimeStats)
+                .map(([userId, data]) => ({ userId, ...data }))
+                .sort((a, b) => b.totalCount - a.totalCount)
+                .slice(0, 10);
+
+            return stats;
+        } catch (error) {
+            console.error('获取打call统计失败:', error);
+            return { totalDays: 0, todayTotal: 0, topUsers: [] };
+        }
+    }
+
+    // 清除过期的打call数据（保留最近30天）
+    cleanupOldCheerData() {
+        try {
+            const cheersData = JSON.parse(localStorage.getItem(this.CHEERS_KEY) || '{}');
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            const cutoffDate = thirtyDaysAgo.getFullYear() + '-' + 
+                              String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0') + '-' + 
+                              String(thirtyDaysAgo.getDate()).padStart(2, '0');
+
+            let deletedDays = 0;
+            Object.keys(cheersData).forEach(dateKey => {
+                if (dateKey < cutoffDate) {
+                    delete cheersData[dateKey];
+                    deletedDays++;
+                }
+            });
+
+            if (deletedDays > 0) {
+                localStorage.setItem(this.CHEERS_KEY, JSON.stringify(cheersData));
+                console.log(`🗑️ 清理了 ${deletedDays} 天的过期打call数据`);
+            }
+        } catch (error) {
+            console.error('清理打call数据失败:', error);
+        }
     }
 }
 
 // 单例模式
 const contentStorage = new ContentStorage();
+
+// 启动时清理过期数据
+contentStorage.cleanupOldCheerData();
+
 export default contentStorage;

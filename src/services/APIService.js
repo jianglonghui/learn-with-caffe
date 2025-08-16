@@ -6,6 +6,7 @@ class APIService {
         this.baseURL = import.meta.env.REACT_APP_API_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
         this.maxRetries = 3;
         this.timeout = 30000;
+        this.activeRequests = new Map(); // 用于去重的请求映射
 
         // 验证API key配置
         if (!import.meta.env.REACT_APP_GLM_API_KEY) {
@@ -24,6 +25,15 @@ class APIService {
 
     async request(prompt, options = {}) {
         const sanitizedPrompt = SecurityUtils.sanitizeInput(prompt);
+        
+        // 生成请求的唯一标识符（基于prompt的hash）
+        const requestKey = this.generateRequestKey(sanitizedPrompt);
+        
+        // 检查是否有相同的请求正在进行
+        if (this.activeRequests.has(requestKey)) {
+            console.log(`⚠️ 检测到重复请求，等待已有请求完成: ${prompt.substring(0, 50)}...`);
+            return await this.activeRequests.get(requestKey);
+        }
 
         const requestBody = {
             model: options.model || "glm-4.5",
@@ -32,8 +42,25 @@ class APIService {
             thinking: { type: "disabled" }
         };
 
+        console.log(`🚀 API请求开始: ${prompt.substring(0, 50)}...`);
+        
+        // 创建请求Promise并存储到activeRequests中
+        const requestPromise = this.executeRequest(requestBody, options);
+        this.activeRequests.set(requestKey, requestPromise);
+        
+        try {
+            const result = await requestPromise;
+            return result;
+        } finally {
+            // 请求完成后删除记录
+            this.activeRequests.delete(requestKey);
+        }
+    }
+
+    async executeRequest(requestBody, options) {
         let lastError;
         for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+            console.log(`📡 API请求尝试 ${attempt}/${this.maxRetries}`);
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -51,7 +78,7 @@ class APIService {
                 clearTimeout(timeoutId);
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    throw new Error(`HTTP ${response.status}: ${response.status}`);
                 }
 
                 const data = await response.json();
@@ -60,44 +87,171 @@ class APIService {
                     throw new Error('Invalid API response format');
                 }
 
-                return this.cleanAndParseJSON(data.choices[0]?.message?.content || '');
+                console.log(`✅ API请求成功`);
+                const content = data.choices[0]?.message?.content || '';
+                
+                // 检查是否期望JSON格式
+                if (options.expectJSON !== false && (content.includes('{') || content.includes('['))) {
+                    return this.cleanAndParseJSON(content);
+                } else {
+                    // 返回纯文本
+                    return content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+                }
 
             } catch (error) {
+                console.warn(`❌ API请求尝试 ${attempt} 失败:`, error.message);
                 lastError = error;
                 if (attempt < this.maxRetries) {
-                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                    const waitTime = Math.pow(2, attempt) * 1000;
+                    console.log(`⏳ 等待 ${waitTime}ms 后重试...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
                 }
             }
         }
+        console.error(`🚫 API请求最终失败:`, lastError);
         throw lastError;
     }
 
+    generateRequestKey(prompt) {
+        // 简单的hash函数生成唯一key
+        let hash = 0;
+        for (let i = 0; i < prompt.length; i++) {
+            const char = prompt.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // 转换为32位整数
+        }
+        return `req_${Math.abs(hash)}`;
+    }
+
     cleanAndParseJSON(responseText) {
+        console.log('🔍 原始响应文本:', responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
+        
         try {
             let cleanText = responseText
                 .replace(/```json\s*/g, "")
                 .replace(/```\s*/g, "")
-                .trim()
+                .trim();
+
+            console.log('🧹 清理后的文本:', cleanText.substring(0, 500) + (cleanText.length > 500 ? '...' : ''));
+
+            // 检测并处理被引号包围的JSON字符串
+            if (cleanText.startsWith('"') && cleanText.endsWith('"')) {
+                console.log('🔧 检测到外层引号，进行处理...');
+                cleanText = cleanText.slice(1, -1);
+                cleanText = cleanText
+                    .replace(/\\"/g, '"')
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\\\/g, '\\');
+            }
+
+            // 进一步清理
+            cleanText = cleanText
                 .replace(/[\r\n\t]/g, ' ')
                 .replace(/\s+/g, ' ')
                 .replace(/,(\s*[}\]])/g, '$1');
 
-
-            // 🔥 添加这部分逻辑 - 检测并处理被引号包围的JSON字符串
-            if (cleanText.startsWith('"') && cleanText.endsWith('"')) {
-                // 移除外层引号
-                cleanText = cleanText.slice(1, -1);
-                // 处理转义字符
-                cleanText = cleanText
-                    .replace(/\\"/g, '"')     // 恢复转义的引号
-                    .replace(/\\n/g, '\n')    // 恢复换行符
-                    .replace(/\\\\/g, '\\');  // 恢复反斜杠
-            }
-            // 🔥 添加结束
+            // 修复引号问题
             cleanText = this.fixQuotesInJSON(cleanText);
-            return JSON.parse(cleanText);
+            
+            console.log('✅ 最终清理的JSON:', cleanText.substring(0, 500) + (cleanText.length > 500 ? '...' : ''));
+            
+            const result = JSON.parse(cleanText);
+            console.log('🎉 JSON解析成功');
+            return result;
         } catch (error) {
+            console.error('❌ JSON解析失败详情:', {
+                error: error.message,
+                原始文本长度: responseText.length,
+                原始文本: responseText.substring(0, 200)
+            });
+            
+            // 尝试修复常见的JSON问题
+            const fixedText = this.attemptJSONFix(responseText);
+            if (fixedText) {
+                try {
+                    console.log('🔧 尝试修复后的JSON:', fixedText.substring(0, 200));
+                    const result = JSON.parse(fixedText);
+                    console.log('🎉 修复后解析成功');
+                    return result;
+                } catch (fixError) {
+                    console.error('❌ 修复后仍然失败:', fixError.message);
+                }
+            }
+            
             throw new Error(`JSON解析失败: ${error.message || '未知错误'}`);
+        }
+    }
+
+    attemptJSONFix(responseText) {
+        try {
+            console.log('🔧 开始JSON修复...');
+            
+            // 移除markdown代码块标记
+            let cleanText = responseText
+                .replace(/```json\s*/g, '')
+                .replace(/```\s*/g, '')
+                .trim();
+            
+            // 尝试修复1：处理完整的JSON对象
+            let jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                let jsonText = jsonMatch[0];
+                console.log('🔍 找到JSON对象，长度:', jsonText.length);
+                
+                // 专门处理content字段中的长文本
+                jsonText = this.fixLongTextInJSON(jsonText);
+                
+                return jsonText;
+            }
+            
+            // 尝试修复2：寻找数组格式
+            jsonMatch = cleanText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                return jsonMatch[0];
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('JSON修复失败:', error);
+            return null;
+        }
+    }
+
+    fixLongTextInJSON(jsonText) {
+        try {
+            // 使用正则表达式找到content字段的值并修复
+            const contentMatch = jsonText.match(/"content"\s*:\s*"([\s\S]*?)"\s*}/);
+            if (contentMatch) {
+                const originalContent = contentMatch[1];
+                console.log('🔧 修复content字段，原长度:', originalContent.length);
+                
+                // 修复content字段中的特殊字符
+                const fixedContent = originalContent
+                    .replace(/\\/g, '\\\\')  // 转义反斜杠
+                    .replace(/"/g, '\\"')    // 转义双引号
+                    .replace(/\n/g, '\\n')   // 转义换行符
+                    .replace(/\r/g, '\\r')   // 转义回车符
+                    .replace(/\t/g, '\\t');  // 转义制表符
+                
+                // 替换原JSON中的content字段
+                const fixedJSON = jsonText.replace(
+                    /"content"\s*:\s*"[\s\S]*?"\s*}/,
+                    `"content": "${fixedContent}"}`
+                );
+                
+                console.log('✅ content字段修复完成');
+                return fixedJSON;
+            }
+            
+            // 如果没有找到content字段，进行通用修复
+            return jsonText
+                .replace(/,\s*}/g, '}')  // 移除对象末尾的逗号
+                .replace(/,\s*]/g, ']')  // 移除数组末尾的逗号
+                .replace(/([{,]\s*)(\w+):/g, '$1"$2":');  // 为属性名添加引号
+                
+        } catch (error) {
+            console.error('长文本修复失败:', error);
+            return jsonText;
         }
     }
 
@@ -473,6 +627,62 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
 
 DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
         return this.request(prompt, { maxTokens: 4000 });
+    }
+
+    async generateUserBlogPosts(userName, expertise, context, count = 5) {
+        const prompt = `你是博主"${userName}"（${expertise}），要为你的个人博客生成${count}篇文章信息。
+
+【背景信息】
+${context}
+
+【任务要求】
+基于你的专业身份"${expertise}"，动态分析并展现以下特质：
+
+1. **专业态度分析**：
+   - 分析这个职业通常会对行业有什么独特看法
+   - 思考从业者可能关心哪些深层问题
+   - 考虑这个领域的争议点和痛点
+
+2. **个性风格推断**：
+   - 根据职业特点推断可能的表达风格（如：学者式、匠人式、创新者式等）
+   - 考虑这类专业人士的语言特色
+   - 平衡专业性与个人魅力
+
+3. **内容主题挖掘**：
+   - 从专业角度挖掘值得深入讨论的话题
+   - 结合当下热点与专业领域的交集
+   - 体现行业内部视角和独特洞察
+
+【生成标准】
+- 标题必须体现专业深度和个人观点，避免泛泛而谈
+- 预览要展现独特见解，让读者感受到专业人士的真实思考
+- 内容要有争议性和讨论价值，不是简单的知识普及
+- 语言风格要符合该专业人士的身份特征
+
+请严格按照以下JSON格式输出：
+
+{
+  "blogPosts": [
+    {
+      "id": "post1",
+      "title": "体现专业见解和个人态度的标题",
+      "preview": "展现专业深度和独特观点的预览，100-150字，要有个人色彩和专业洞察",
+      "category": "文章分类",
+      "readTime": "8分钟",
+      "tags": ["标签1", "标签2", "标签3"]
+    }
+  ]
+}
+
+注意：
+- 不要生成教科书式或官方腔调的内容
+- 标题要有观点和态度，能引发思考
+- 预览要体现这个专业人士的独特视角
+- 避免平庸无奇的表达
+- 不要包含换行符和特殊字符
+
+现在请深入分析"${userName}""${expertise}"这个身份，生成具有强烈个人风格和专业洞察的文章：`;
+        return this.request(prompt, { maxTokens: 2500 });
     }
 
     async generateWorkshopSimulator(selectedConcepts, selectedKnowledgePoints, topic) {

@@ -8,20 +8,49 @@ const RecommendedUsers = ({ onClose }) => {
     const [recommendedUsers, setRecommendedUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [userPreferences, setUserPreferences] = useState(null);
+    const [isFromCache, setIsFromCache] = useState(false);
     const navigate = useNavigate();
     const apiService = APIService.getInstance();
 
     useEffect(() => {
-        generateRecommendations();
+        loadRecommendations();
     }, []);
 
-    const generateRecommendations = async () => {
+    const loadRecommendations = async () => {
+        setIsLoading(true);
+        try {
+            // 首先尝试从缓存加载
+            const cached = contentStorage.getCachedRecommendations();
+            
+            if (cached) {
+                // 使用缓存数据
+                setRecommendedUsers(cached.users);
+                setUserPreferences(cached.userPreferences);
+                setIsFromCache(true);
+                setIsLoading(false);
+                return;
+            }
+            
+            // 缓存无效或不存在，生成新推荐
+            await generateRecommendations();
+        } catch (error) {
+            console.error('加载推荐失败:', error);
+            setIsLoading(false);
+        }
+    };
+
+    const generateRecommendations = async (forceRefresh = false) => {
+        if (forceRefresh) {
+            console.log('🔄 强制刷新推荐');
+            contentStorage.refreshRecommendations();
+        }
+        
         setIsLoading(true);
         try {
             const recommendationData = contentStorage.generateRecommendationPrompt();
             setUserPreferences(recommendationData.userPreferences);
             
-            console.log('用户偏好分析:', recommendationData);
+            console.log('📊 用户偏好分析:', recommendationData);
             
             const result = await apiService.generateRecommendedUsers(recommendationData, 4);
             
@@ -37,9 +66,13 @@ const RecommendedUsers = ({ onClose }) => {
                 }));
                 
                 setRecommendedUsers(users);
+                setIsFromCache(false);
+                
+                // 保存到缓存
+                contentStorage.saveRecommendations(users, recommendationData.userPreferences);
             }
         } catch (error) {
-            console.error('生成推荐失败:', error);
+            console.error('❌ 生成推荐失败:', error);
         }
         setIsLoading(false);
     };
@@ -87,7 +120,7 @@ const RecommendedUsers = ({ onClose }) => {
                 </div>
                 <div className="flex items-center space-x-2">
                     <button
-                        onClick={generateRecommendations}
+                        onClick={() => generateRecommendations(true)}
                         disabled={isLoading}
                         className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
                         title="刷新推荐"
@@ -106,7 +139,7 @@ const RecommendedUsers = ({ onClose }) => {
                 </div>
             </div>
 
-            {/* 偏好说明 */}
+            {/* 偏好说明和缓存状态 */}
             {userPreferences && userPreferences.totalFollowing > 0 && (
                 <div className="bg-blue-50 rounded-lg p-3 mb-4">
                     <p className="text-sm text-blue-700">
@@ -115,6 +148,11 @@ const RecommendedUsers = ({ onClose }) => {
                         {Object.keys(userPreferences.subjects).length > 0 && (
                             <span className="ml-2">
                                 • 偏好领域：{Object.keys(userPreferences.subjects).slice(0, 3).join('、')}
+                            </span>
+                        )}
+                        {isFromCache && (
+                            <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                💾 缓存数据
                             </span>
                         )}
                     </p>

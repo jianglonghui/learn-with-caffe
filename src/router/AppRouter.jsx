@@ -17,6 +17,9 @@ import AssessmentDisplay from '../components/AssessmentDisplay';
 import OutlineDisplay from '../components/OutlineDisplay';
 import DeepLearningDisplay from '../components/DeepLearningDisplay';
 import PersonalCenter from '../components/PersonalCenter';
+import BlogHomePage from '../components/BlogHomePage';
+import BlogArticle from '../components/BlogArticle';
+import UserBlogArticle from '../components/UserBlogArticle';
 
 const AppRouter = () => {
     return (
@@ -31,6 +34,7 @@ const AppRouter = () => {
 
                                 {/* 用户个人主页 */}
                                 <Route path="/user/:userId" element={<UserProfile />} />
+                                <Route path="/user/:userId/blog/:postId" element={<UserBlogArticle />} />
 
                                 {/* 主题选择页面 */}
                                 <Route path="/topics" element={<TopicSelector />} />
@@ -59,6 +63,10 @@ const AppRouter = () => {
 
                                 {/* 个人中心 */}
                                 <Route path="/profile" element={<PersonalCenter />} />
+
+                                {/* 博客模块 */}
+                                <Route path="/blog" element={<BlogHomePage />} />
+                                <Route path="/blog/:postId" element={<BlogArticle />} />
 
                                 {/* 重定向无效路径到主页 */}
                                 <Route path="*" element={<Navigate to="/" replace />} />

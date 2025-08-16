@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, RefreshCw, Loader } from 'lucide-react';
+import { Search, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, RefreshCw, Loader, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
 import RecommendedUsers from './RecommendedUsers';
+import CheerLeaderboard from './CheerLeaderboard';
 
 const HomePage = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -242,6 +243,11 @@ const HomePage = () => {
             shares: post.shares || 0,
             bookmarks: post.bookmarks || 0
         });
+        
+        // 打call相关状态
+        const userId = contentStorage.generateUserIdFromName(post.expertName);
+        const [cheerCount, setCheerCount] = useState(() => contentStorage.getUserTodayCheerCount(userId));
+        const [isAnimating, setIsAnimating] = useState(false);
 
         const handleLike = () => {
             if (liked) {
@@ -269,6 +275,21 @@ const HomePage = () => {
                 ...prev,
                 bookmarks: bookmarked ? prev.bookmarks - 1 : prev.bookmarks + 1
             }));
+        };
+
+        const handleCheer = () => {
+            // 触发打call动画
+            setIsAnimating(true);
+            setTimeout(() => setIsAnimating(false), 300);
+            
+            // 增加打call次数
+            const newCount = contentStorage.cheerForUser(userId, post.expertName);
+            setCheerCount(newCount);
+            
+            // 触发振动反馈（如果支持）
+            if (navigator.vibrate) {
+                navigator.vibrate(30);
+            }
         };
 
         const handleUserClick = () => {
@@ -364,6 +385,21 @@ const HomePage = () => {
                         <span className="text-sm">{localStats.shares}</span>
                     </button>
                     <button 
+                        onClick={handleCheer}
+                        className={`flex items-center space-x-1 transition-all duration-300 transform ${
+                            isAnimating ? 'scale-110' : 'scale-100'
+                        } ${
+                            cheerCount > 0 ? 'text-purple-500' : 'text-gray-600 hover:text-purple-500'
+                        }`}
+                    >
+                        <Megaphone 
+                            size={18} 
+                            className={`${isAnimating ? 'animate-pulse' : ''}`}
+                            fill={cheerCount > 0 ? 'currentColor' : 'none'} 
+                        />
+                        <span className="text-sm font-medium">{cheerCount > 0 ? cheerCount : 'Call'}</span>
+                    </button>
+                    <button 
                         onClick={handleBookmark}
                         className={`flex items-center space-x-1 transition-colors ${
                             bookmarked ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-500'
@@ -456,6 +492,9 @@ const HomePage = () => {
                     </div>
                 ) : (
                     <>
+                        {/* 打Call排行榜 */}
+                        <CheerLeaderboard />
+                        
                         {/* 知识流 */}
                         <div>
                             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-between">
