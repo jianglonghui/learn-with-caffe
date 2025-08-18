@@ -6,6 +6,8 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import AppLayout from '../components/layout/AppLayout';
 
 // 导入所有页面组件
+import MinimalistHomePage from '../components/MinimalistHomePage';
+import MinimalistFeedPage from '../components/MinimalistFeedPage';
 import HomePage from '../components/HomePage';
 import UserProfile from '../components/UserProfile';
 import TopicSelector from '../components/TopicSelector';
@@ -29,8 +31,12 @@ const AppRouter = () => {
                     <Suspense fallback={<LoadingSpinner />}>
                         <AppLayout>
                             <Routes>
-                                {/* 主页 - 社交学习feed */}
-                                <Route path="/" element={<HomePage />} />
+                                {/* 主页 - 极简主义着陆页 */}
+                                <Route path="/" element={<MinimalistHomePage />} />
+                                
+                                {/* 社交学习feed */}
+                                <Route path="/modern-feed" element={<HomePage />} />
+                                <Route path="/modern-feed" element={<MinimalistFeedPage />} />
 
                                 {/* 用户个人主页 */}
                                 <Route path="/user/:userId" element={<UserProfile />} />

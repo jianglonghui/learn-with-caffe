@@ -278,147 +278,181 @@ const UserProfile = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* 顶部导航栏 */}
-            <div className="bg-white shadow-sm sticky top-0 z-10">
-                <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="p-2 rounded-full hover:bg-gray-100"
-                        >
-                            <ArrowLeft size={20} />
-                        </button>
-                        <h1 className="font-semibold text-lg">{userData.name}</h1>
-                        {userData.verified && <Verified className="text-blue-500" size={18} />}
-                    </div>
-                    <button className="p-2 rounded-full hover:bg-gray-100">
-                        <MoreHorizontal size={20} />
-                    </button>
-                </div>
-            </div>
-
-            {/* 用户信息区 */}
-            <div className="bg-white border-b border-gray-200">
-                <div className="max-w-2xl mx-auto px-4 py-6">
-                    {/* 头像和基本信息 */}
-                    <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-start space-x-4">
-                            <div className="text-6xl">{userData.avatar}</div>
-                            <div className="flex-1">
-                                <h2 className="text-xl font-bold flex items-center space-x-2">
-                                    <span>{userData.name}</span>
-                                    {userData.verified && <Verified className="text-blue-500" size={20} />}
-                                </h2>
-                                <p className="text-gray-600">{userData.expertise}</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleFollow}
-                            className={`px-4 py-2 rounded-full font-medium transition-colors ${
-                                isFollowing
-                                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                            }`}
-                        >
-                            {isFollowing ? (
-                                <>
-                                    <UserCheck size={18} className="inline mr-1" />
-                                    已关注
-                                </>
-                            ) : (
-                                <>
-                                    <UserPlus size={18} className="inline mr-1" />
-                                    关注
-                                </>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* 个人简介 */}
-                    <p className="text-gray-800 mb-4 leading-relaxed">{userData.bio}</p>
-
-                    {/* 标签 */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                        {userData.tags.map(tag => (
-                            <span
-                                key={tag}
-                                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+            {/* 顶部导航栏 - 现代化设计 */}
+            <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+                <div className="max-w-4xl mx-auto px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <button
+                                onClick={() => navigate(-1)}
+                                className="p-2 rounded-xl hover:bg-gray-100 transition-all duration-200"
                             >
-                                #{tag}
-                            </span>
-                        ))}
-                    </div>
-
-                    {/* 附加信息 */}
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-4">
-                        {userData.location && (
-                            <div className="flex items-center space-x-1">
-                                <MapPin size={14} />
-                                <span>{userData.location}</span>
+                                <ArrowLeft size={20} className="text-gray-600" />
+                            </button>
+                            <div className="flex items-center space-x-3">
+                                <h1 className="font-bold text-xl text-gray-900">{userData.name}</h1>
+                                {userData.verified && (
+                                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <Verified className="text-white" size={14} />
+                                    </div>
+                                )}
                             </div>
-                        )}
-                        <div className="flex items-center space-x-1">
-                            <Calendar size={14} />
-                            <span>加入于 {userData.joinDate}</span>
                         </div>
-                        {userData.website && (
-                            <div className="flex items-center space-x-1">
-                                <Link2 size={14} />
-                                <a href={`https://${userData.website}`} className="text-blue-500 hover:underline">
-                                    {userData.website}
-                                </a>
-                            </div>
-                        )}
+                        <button className="p-2 rounded-xl hover:bg-gray-100 transition-all duration-200">
+                            <MoreHorizontal size={20} className="text-gray-600" />
+                        </button>
                     </div>
+                </div>
+            </div>
 
-                    {/* 统计数据 */}
-                    <div className="flex space-x-6 text-sm">
-                        <div>
-                            <span className="font-bold text-gray-900">{userData.followers.toLocaleString()}</span>
-                            <span className="text-gray-600 ml-1">关注者</span>
+            {/* 用户信息区 - 现代化卡片设计 */}
+            <div className="max-w-4xl mx-auto px-6 py-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    {/* 背景装饰 */}
+                    <div className="h-32 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-100/30 to-purple-100/30"></div>
+                    </div>
+                    
+                    <div className="px-8 py-6 -mt-16 relative">
+                        {/* 头像和基本信息 */}
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between mb-6">
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
+                                {/* 头像 */}
+                                <div className="relative">
+                                    <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-6xl border-4 border-white shadow-xl">
+                                        {userData.avatar}
+                                    </div>
+                                    {userData.verified && (
+                                        <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                                            <Verified className="text-white" size={20} />
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* 基本信息 */}
+                                <div className="flex-1 text-center sm:text-left">
+                                    <h2 className="text-3xl font-bold text-gray-900 mb-2">{userData.name}</h2>
+                                    <p className="text-lg text-gray-600 mb-4">{userData.expertise}</p>
+                                    
+                                    {/* 统计数据 - 横向显示 */}
+                                    <div className="flex justify-center sm:justify-start space-x-8 mb-4">
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-gray-900">{userData.followers.toLocaleString()}</div>
+                                            <div className="text-sm text-gray-500">关注者</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-gray-900">{userData.following}</div>
+                                            <div className="text-sm text-gray-500">关注中</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-2xl font-bold text-gray-900">{userData.posts}</div>
+                                            <div className="text-sm text-gray-500">推文</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* 关注按钮 */}
+                            <button
+                                onClick={handleFollow}
+                                className={`mt-4 sm:mt-0 px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg ${
+                                    isFollowing
+                                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                        : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600'
+                                }`}
+                            >
+                                {isFollowing ? (
+                                    <div className="flex items-center space-x-2">
+                                        <UserCheck size={20} />
+                                        <span>已关注</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center space-x-2">
+                                        <UserPlus size={20} />
+                                        <span>关注</span>
+                                    </div>
+                                )}
+                            </button>
                         </div>
-                        <div>
-                            <span className="font-bold text-gray-900">{userData.following}</span>
-                            <span className="text-gray-600 ml-1">关注中</span>
+
+                        {/* 个人简介 */}
+                        <div className="mb-6">
+                            <p className="text-gray-800 text-lg leading-relaxed">{userData.bio}</p>
                         </div>
-                        <div>
-                            <span className="font-bold text-gray-900">{userData.posts}</span>
-                            <span className="text-gray-600 ml-1">推文</span>
+
+                        {/* 标签 */}
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            {userData.tags.map(tag => (
+                                <span
+                                    key={tag}
+                                    className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer"
+                                >
+                                    #{tag}
+                                </span>
+                            ))}
+                        </div>
+
+                        {/* 附加信息 */}
+                        <div className="flex flex-wrap gap-6 text-gray-600">
+                            {userData.location && (
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                        <MapPin size={16} />
+                                    </div>
+                                    <span>{userData.location}</span>
+                                </div>
+                            )}
+                            <div className="flex items-center space-x-2">
+                                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                    <Calendar size={16} />
+                                </div>
+                                <span>加入于 {userData.joinDate}</span>
+                            </div>
+                            {userData.website && (
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                        <Link2 size={16} />
+                                    </div>
+                                    <a href={`https://${userData.website}`} className="text-blue-600 hover:text-blue-700 hover:underline transition-colors">
+                                        {userData.website}
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* 标签页 */}
-            <div className="bg-white border-b border-gray-200 sticky top-14 z-10">
-                <div className="max-w-2xl mx-auto px-4">
-                    <div className="flex space-x-8">
+            {/* 标签页 - 现代化设计 */}
+            <div className="max-w-4xl mx-auto px-6 mb-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="flex">
                         <button
                             onClick={() => setActiveTab('posts')}
-                            className={`py-3 border-b-2 font-medium transition-colors ${
+                            className={`flex-1 py-4 px-6 font-semibold transition-all duration-200 ${
                                 activeTab === 'posts'
-                                    ? 'border-blue-500 text-blue-500'
-                                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    ? 'bg-blue-500 text-white'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                             }`}
                         >
                             推文
                         </button>
                         <button
                             onClick={() => setActiveTab('blogs')}
-                            className={`py-3 border-b-2 font-medium transition-colors ${
+                            className={`flex-1 py-4 px-6 font-semibold transition-all duration-200 ${
                                 activeTab === 'blogs'
-                                    ? 'border-blue-500 text-blue-500'
-                                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    ? 'bg-blue-500 text-white'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                             }`}
                         >
                             长文
                         </button>
                         <button
                             onClick={() => setActiveTab('achievements')}
-                            className={`py-3 border-b-2 font-medium transition-colors ${
+                            className={`flex-1 py-4 px-6 font-semibold transition-all duration-200 ${
                                 activeTab === 'achievements'
-                                    ? 'border-blue-500 text-blue-500'
-                                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    ? 'bg-blue-500 text-white'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                             }`}
                         >
                             成就
@@ -427,96 +461,175 @@ const UserProfile = () => {
                 </div>
             </div>
 
-            {/* 内容区 */}
-            <div className="max-w-2xl mx-auto px-4 py-6">
+            {/* 内容区 - 现代化布局 */}
+            <div className="max-w-4xl mx-auto px-6">
                 {activeTab === 'posts' && (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         {userPosts.map(post => (
-                            <div key={post.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                                <p className="text-gray-800 mb-3">{post.content}</p>
-                                {post.image && (
-                                    <div className="text-center text-4xl mb-3">{post.image}</div>
-                                )}
-                                <div className="flex items-center justify-between text-sm text-gray-600">
-                                    <span>{post.timestamp}</span>
-                                    <div className="flex space-x-4">
-                                        <span>❤️ {post.likes}</span>
-                                        <span>💬 {post.comments}</span>
-                                        <span>🔄 {post.shares}</span>
+                            <article key={post.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 overflow-hidden">
+                                {/* 帖子头部 */}
+                                <div className="p-6 pb-4">
+                                    <div className="flex items-center space-x-4 mb-4">
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-xl border-2 border-white shadow-sm">
+                                            {userData.avatar}
+                                        </div>
+                                        <div className="flex-1">
+                                            <h3 className="font-semibold text-gray-900">{userData.name}</h3>
+                                            <p className="text-sm text-gray-500">{userData.expertise}</p>
+                                        </div>
+                                        <span className="text-sm text-gray-400">{post.timestamp}</span>
+                                    </div>
+                                    
+                                    {/* 帖子内容 */}
+                                    <p className="text-gray-800 text-lg leading-relaxed mb-4">{post.content}</p>
+                                    
+                                    {/* 帖子图片 */}
+                                    {post.image && (
+                                        <div className="rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 p-8 text-center mb-4">
+                                            <div className="text-6xl opacity-80">{post.image}</div>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* 互动区域 */}
+                                <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-6">
+                                            <div className="flex items-center space-x-2 text-gray-500">
+                                                <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                                                    <span className="text-red-500">❤️</span>
+                                                </div>
+                                                <span className="font-medium">{post.likes}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-2 text-gray-500">
+                                                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                                                    <span className="text-blue-500">💬</span>
+                                                </div>
+                                                <span className="font-medium">{post.comments}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-2 text-gray-500">
+                                                <div className="w-8 h-8 rounded-full bg-green-50 flex items-center justify-center">
+                                                    <span className="text-green-500">🔄</span>
+                                                </div>
+                                                <span className="font-medium">{post.shares}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* 话题标签 */}
+                                        {post.topic && (
+                                            <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-100">
+                                                #{post.topic}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
+                            </article>
                         ))}
-                        <div className="text-center py-4">
+                        <div className="text-center py-8">
                             <button 
                                 onClick={loadMorePosts}
                                 disabled={isGenerating}
-                                className="text-blue-500 hover:text-blue-600 disabled:text-gray-400"
+                                className="px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isGenerating ? '生成中...' : '加载更多推文'}
+                                {isGenerating ? (
+                                    <div className="flex items-center space-x-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
+                                        <span>生成中...</span>
+                                    </div>
+                                ) : (
+                                    '加载更多推文'
+                                )}
                             </button>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'blogs' && (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         {blogPosts.length > 0 ? (
                             blogPosts.map((post) => (
                                 <article
                                     key={post.id}
                                     onClick={() => navigate(`/user/${userId}/blog/${post.id}`)}
-                                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow cursor-pointer"
+                                    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 cursor-pointer group overflow-hidden"
                                 >
-                                    <div className="mb-2">
-                                        <span className="inline-block px-2 py-1 text-xs font-semibold text-blue-600 bg-blue-100 rounded">
+                                    {/* 分类标签 */}
+                                    <div className="mb-4">
+                                        <span className="inline-block px-3 py-1 text-sm font-semibold text-blue-600 bg-blue-50 rounded-full border border-blue-100">
                                             {post.category}
                                         </span>
                                     </div>
                                     
-                                    <h3 className="text-lg font-bold text-gray-800 mb-2 hover:text-blue-600 transition-colors">
+                                    {/* 文章标题 */}
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
                                         {post.title}
                                     </h3>
                                     
-                                    <p className="text-gray-600 mb-3 line-clamp-2">
+                                    {/* 文章预览 */}
+                                    <p className="text-gray-600 mb-4 line-clamp-3 leading-relaxed text-lg">
                                         {post.preview}
                                     </p>
                                     
+                                    {/* 文章元信息 */}
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3 text-sm text-gray-500">
-                                            <div className="flex items-center gap-1">
-                                                <Clock className="w-4 h-4" />
+                                        <div className="flex items-center gap-6 text-sm text-gray-500">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                                                    <Clock className="w-3 h-3" />
+                                                </div>
                                                 <span>{post.readTime}</span>
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                <Tag className="w-3 h-3" />
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                                                    <Tag className="w-3 h-3" />
+                                                </div>
                                                 <span>{post.tags[0]}</span>
                                             </div>
                                         </div>
                                         
-                                        <div className="flex items-center text-blue-600">
-                                            <span className="text-sm">阅读全文</span>
-                                            <ChevronRight className="w-4 h-4" />
+                                        <div className="flex items-center text-blue-600 group-hover:text-blue-700">
+                                            <span className="text-sm font-medium">阅读全文</span>
+                                            <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                                         </div>
                                     </div>
                                 </article>
                             ))
                         ) : (
-                            <div className="text-center py-8 text-gray-500">
-                                <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                                <p>暂无长文</p>
+                            <div className="text-center py-16">
+                                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <BookOpen className="w-10 h-10 text-gray-400" />
+                                </div>
+                                <p className="text-gray-500 text-lg mb-2">暂无长文</p>
+                                <p className="text-gray-400 text-sm">作者还未发布任何长文内容</p>
                             </div>
                         )}
                     </div>
                 )}
 
                 {activeTab === 'achievements' && (
-                    <div className="space-y-3">
-                        {userData.achievements.map((achievement, index) => (
-                            <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
-                                <p className="text-gray-800">{achievement}</p>
+                    <div className="space-y-4">
+                        {userData.achievements && userData.achievements.length > 0 ? (
+                            userData.achievements.map((achievement, index) => (
+                                <div key={index} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300">
+                                    <div className="flex items-start space-x-4">
+                                        <div className="w-12 h-12 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-full flex items-center justify-center">
+                                            <span className="text-2xl">🏆</span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-gray-800 text-lg leading-relaxed">{achievement}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center py-16">
+                                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-4xl text-gray-400">🏆</span>
+                                </div>
+                                <p className="text-gray-500 text-lg mb-2">暂无成就</p>
+                                <p className="text-gray-400 text-sm">作者的精彩成就正在路上</p>
                             </div>
-                        ))}
+                        )}
                     </div>
                 )}
             </div>

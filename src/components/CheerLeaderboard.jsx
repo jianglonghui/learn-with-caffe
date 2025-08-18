@@ -70,104 +70,133 @@ const CheerLeaderboard = () => {
     });
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 mb-6 overflow-hidden">
             {/* 头部 */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                    <Trophy className="text-yellow-500" size={20} />
-                    <h3 className="font-semibold text-gray-900">今日打Call榜</h3>
-                    <span className="text-sm text-gray-500">
-                        ({todayStats.todayTotal} 次)
-                    </span>
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-50">
+                <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-full flex items-center justify-center">
+                        <Trophy className="text-yellow-600" size={16} />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-gray-900 text-lg">今日打Call榜</h3>
+                        <span className="text-xs text-gray-500">
+                            今日共 {todayStats.todayTotal} 次打call
+                        </span>
+                    </div>
                 </div>
-                <div className="text-xs text-gray-400">
-                    每日0点重置
+                <div className="text-right">
+                    <div className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-full">
+                        每日0点重置
+                    </div>
                 </div>
             </div>
 
             {/* 颁奖台 */}
-            <div className="flex items-end justify-center space-x-2 mb-6">
-                {podiumData.map((podium, index) => (
-                    <div 
-                        key={podium.position} 
-                        className="flex flex-col items-center"
-                        style={{ order: index === 1 ? 0 : index + 1 }} // 确保冠军在中间
-                    >
-                        {/* 用户信息 */}
-                        {podium.user ? (
-                            <div 
-                                className="mb-2 cursor-pointer transform hover:scale-105 transition-transform"
-                                onClick={() => handleUserClick(podium.user.userId)}
-                            >
-                                {/* 头像 */}
-                                <div className="relative">
-                                    <div className="text-2xl mb-1 text-center">
-                                        {podium.user.avatar}
-                                    </div>
-                                    {/* 排名图标 */}
-                                    <div className="absolute -top-1 -right-1">
-                                        {podium.icon}
-                                    </div>
-                                </div>
-                                
-                                {/* 用户名 */}
-                                <div className="text-center">
-                                    <div className={`text-xs font-medium ${podium.textColor} truncate w-16`}>
-                                        {podium.user.name}
-                                    </div>
-                                    <div className={`text-xs ${podium.textColor} font-bold`}>
-                                        {podium.user.count} 次
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="mb-2 flex flex-col items-center">
-                                <div className="text-2xl mb-1 text-gray-300">👤</div>
-                                <div className="text-xs text-gray-400 text-center">
-                                    <div>暂无</div>
-                                    <div>0 次</div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 颁奖台台阶 */}
+            <div className="px-6 py-8 bg-gradient-to-b from-gray-50 to-white">
+                <div className="flex items-end justify-center space-x-4">
+                    {podiumData.map((podium, index) => (
                         <div 
-                            className={`
-                                w-16 ${podium.height} ${podium.bgColor} 
-                                border-2 ${podium.borderColor} rounded-t-lg
-                                flex items-end justify-center pb-2
-                                relative overflow-hidden
-                            `}
+                            key={podium.position} 
+                            className="flex flex-col items-center"
+                            style={{ order: index === 1 ? 0 : index + 1 }}
                         >
-                            {/* 台阶标号 */}
-                            <div className={`text-lg font-bold ${podium.textColor}`}>
-                                {podium.position}
-                            </div>
-                            
-                            {/* 装饰性渐变 */}
-                            <div 
-                                className={`
-                                    absolute bottom-0 left-0 right-0 h-1 
-                                    ${podium.position === 1 ? 'bg-yellow-400' : 
-                                      podium.position === 2 ? 'bg-gray-400' : 'bg-orange-400'}
-                                `}
-                            />
+                            {/* 用户信息 */}
+                            {podium.user ? (
+                                <div 
+                                    className="mb-3 cursor-pointer transform hover:scale-105 transition-all duration-300 group"
+                                    onClick={() => handleUserClick(podium.user.userId)}
+                                >
+                                    {/* 头像容器 */}
+                                    <div className="relative">
+                                        <div className={`
+                                            ${podium.position === 1 ? 'w-16 h-16 text-3xl' : 
+                                              podium.position === 2 ? 'w-14 h-14 text-2xl' : 'w-12 h-12 text-xl'}
+                                            rounded-full bg-gradient-to-r ${
+                                                podium.position === 1 ? 'from-yellow-100 to-orange-100 border-4 border-yellow-300' :
+                                                podium.position === 2 ? 'from-gray-100 to-slate-100 border-3 border-gray-300' :
+                                                'from-orange-100 to-red-100 border-2 border-orange-300'
+                                            } 
+                                            flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow
+                                        `}>
+                                            {podium.user.avatar}
+                                        </div>
+                                        
+                                        {/* 排名徽章 */}
+                                        <div className={`
+                                            absolute -top-2 -right-2 ${
+                                                podium.position === 1 ? 'w-8 h-8' : 'w-6 h-6'
+                                            } rounded-full ${
+                                                podium.position === 1 ? 'bg-yellow-500' :
+                                                podium.position === 2 ? 'bg-gray-400' : 'bg-orange-400'
+                                            } flex items-center justify-center shadow-md
+                                        `}>
+                                            {React.cloneElement(podium.icon, {
+                                                size: podium.position === 1 ? 18 : 14,
+                                                className: "text-white"
+                                            })}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* 用户信息 */}
+                                    <div className="text-center mt-2">
+                                        <div className={`text-sm font-semibold ${podium.textColor} truncate max-w-20`}>
+                                            {podium.user.name}
+                                        </div>
+                                        <div className={`text-xs ${podium.textColor} font-bold bg-white px-2 py-1 rounded-full mt-1 border`}>
+                                            {podium.user.count} 次
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mb-3 flex flex-col items-center opacity-50">
+                                    <div className={`
+                                        ${podium.position === 1 ? 'w-16 h-16 text-3xl' : 
+                                          podium.position === 2 ? 'w-14 h-14 text-2xl' : 'w-12 h-12 text-xl'}
+                                        rounded-full bg-gray-100 border-2 border-gray-200
+                                        flex items-center justify-center
+                                    `}>
+                                        👤
+                                    </div>
+                                    <div className="text-center mt-2">
+                                        <div className="text-xs text-gray-400">暂无</div>
+                                        <div className="text-xs text-gray-400 bg-white px-2 py-1 rounded-full mt-1 border">
+                                            0 次
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 简化的台阶指示器 */}
+                            <div className={`
+                                w-20 h-2 rounded-full mt-2 ${
+                                    podium.position === 1 ? 'bg-gradient-to-r from-yellow-400 to-orange-400' :
+                                    podium.position === 2 ? 'bg-gradient-to-r from-gray-300 to-gray-400' :
+                                    'bg-gradient-to-r from-orange-300 to-red-400'
+                                }
+                            `} />
                         </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
 
             {/* 统计信息 */}
             {todayStats.todayTotal > 0 && (
-                <div className="text-center">
-                    <div className="flex items-center justify-center space-x-4 text-sm text-gray-600">
-                        <div className="flex items-center space-x-1">
-                            <Star className="w-4 h-4 text-yellow-500" />
-                            <span>今日共 {todayStats.todayTotal} 次打call</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                            <Trophy className="w-4 h-4 text-blue-500" />
-                            <span>{leaderboard.length} 位博主上榜</span>
+                <div className="px-6 pb-6">
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100">
+                        <div className="flex items-center justify-center space-x-6 text-sm">
+                            <div className="flex items-center space-x-2 text-blue-700">
+                                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <Star className="w-3 h-3 text-white" />
+                                </div>
+                                <span className="font-medium">今日 {todayStats.todayTotal} 次</span>
+                            </div>
+                            <div className="w-px h-4 bg-gray-300"></div>
+                            <div className="flex items-center space-x-2 text-purple-700">
+                                <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                                    <Trophy className="w-3 h-3 text-white" />
+                                </div>
+                                <span className="font-medium">{leaderboard.length} 位上榜</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -175,10 +204,12 @@ const CheerLeaderboard = () => {
 
             {/* 空状态 */}
             {leaderboard.length === 0 && (
-                <div className="text-center py-8">
-                    <Trophy className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                    <p className="text-gray-500 text-sm mb-2">今日还没有人获得打call</p>
-                    <p className="text-gray-400 text-xs">快去为你喜欢的博主打call吧！</p>
+                <div className="text-center py-12 px-6">
+                    <div className="w-16 h-16 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Trophy className="w-8 h-8 text-yellow-600" />
+                    </div>
+                    <p className="text-gray-600 text-base font-medium mb-2">今日还没有人获得打call</p>
+                    <p className="text-gray-400 text-sm">快去为你喜欢的博主打call，让他们上榜吧！</p>
                 </div>
             )}
         </div>

@@ -309,140 +309,124 @@ const HomePage = () => {
         };
         
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4 hover:shadow-md transition-shadow">
-                {/* 专家信息 */}
-                <div className="flex items-center justify-between mb-3">
+            <article className="bg-white border border-gray-100 p-8 mb-8 hover:border-gray-200 transition-all duration-200">
+                {/* 极简用户信息 */}
+                <header className="flex items-start justify-between mb-6">
                     <div 
-                        className="flex items-center space-x-3 cursor-pointer hover:opacity-80"
+                        className="flex items-center space-x-4 cursor-pointer group"
                         onClick={handleUserClick}
                     >
-                        <div className="text-2xl">{post.expertAvatar}</div>
+                        <div className="text-3xl">{post.expertAvatar}</div>
                         <div>
-                            <div className="flex items-center space-x-1">
-                                <h3 className="font-semibold text-gray-900 hover:underline">{post.expertName}</h3>
-                                {post.verified && <span className="text-blue-500">✓</span>}
+                            <div className="flex items-center space-x-2">
+                                <h3 className="text-lg font-bold text-gray-900 group-hover:text-gray-700 transition-colors">{post.expertName}</h3>
+                                {post.verified && <span className="text-blue-500 text-sm">✓</span>}
                             </div>
-                            <p className="text-sm text-gray-600">{post.expertise} • {post.timestamp}</p>
+                            <p className="text-sm text-gray-500 mt-1">{post.expertise}</p>
                         </div>
                     </div>
-                    <button className="text-gray-400 hover:text-gray-600">
-                        <MoreHorizontal size={20} />
-                    </button>
-                </div>
+                    <div className="text-xs text-gray-400">{post.timestamp}</div>
+                </header>
 
-                {/* 内容 */}
-                <div className="mb-3">
-                    <p className="text-gray-800 leading-relaxed">{post.content}</p>
+                {/* 极简内容展示 */}
+                <div className="mb-8">
+                    <p className="text-gray-800 leading-relaxed text-lg mb-4">{post.content}</p>
                     {post.image && (
-                        <div className="mt-2 text-center text-6xl">
+                        <div className="text-center text-8xl my-8 opacity-90">
                             {post.image}
                         </div>
                     )}
                 </div>
 
-                {/* 主题标签 */}
-                <div className="mb-3 flex items-center space-x-2">
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                        post.type === 'knowledge' 
-                            ? 'bg-blue-100 text-blue-800' 
-                            : post.type === 'trivia'
-                            ? 'bg-green-100 text-green-800'
-                            : post.type === 'tip'
-                            ? 'bg-purple-100 text-purple-800'
-                            : post.type === 'experience'
-                            ? 'bg-orange-100 text-orange-800'
-                            : post.type === 'achievement'
-                            ? 'bg-pink-100 text-pink-800'
-                            : 'bg-gray-100 text-gray-800'
-                    }`}>
+                {/* 极简主题标签 */}
+                <div className="mb-6">
+                    <span className="inline-block px-3 py-1 text-xs font-medium text-gray-600 bg-gray-50 rounded-full">
                         #{post.topic}
                     </span>
-                    {post.type === 'experience' && (
-                        <span className="text-xs text-orange-600">职业分享</span>
-                    )}
-                    {post.type === 'achievement' && (
-                        <span className="text-xs text-pink-600">生活小成就</span>
-                    )}
                 </div>
 
-                {/* 互动按钮 */}
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                {/* 极简互动按钮 */}
+                <footer className="flex items-center justify-between pt-6 border-t border-gray-50">
                     <button 
                         onClick={handleLike}
-                        className={`flex items-center space-x-1 transition-colors ${
-                            liked ? 'text-red-500' : 'text-gray-600 hover:text-red-500'
+                        className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-all duration-200 ${
+                            liked ? 'text-red-500 bg-red-50' : 'text-gray-500 hover:text-red-500 hover:bg-red-50'
                         }`}
                     >
-                        <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
-                        <span className="text-sm">{localStats.likes}</span>
+                        <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
+                        <span className="text-sm font-medium">{localStats.likes}</span>
                     </button>
-                    <button className="flex items-center space-x-1 text-gray-600 hover:text-blue-500 transition-colors">
-                        <MessageCircle size={18} />
-                        <span className="text-sm">{localStats.comments}</span>
+                    
+                    <button className="flex items-center space-x-2 px-3 py-2 rounded-full text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-all duration-200">
+                        <MessageCircle size={16} />
+                        <span className="text-sm font-medium">{localStats.comments}</span>
                     </button>
-                    <button className="flex items-center space-x-1 text-gray-600 hover:text-green-500 transition-colors">
-                        <Share2 size={18} />
-                        <span className="text-sm">{localStats.shares}</span>
+                    
+                    <button className="flex items-center space-x-2 px-3 py-2 rounded-full text-gray-500 hover:text-green-500 hover:bg-green-50 transition-all duration-200">
+                        <Share2 size={16} />
+                        <span className="text-sm font-medium">{localStats.shares}</span>
                     </button>
+                    
                     <button 
                         onClick={handleCheer}
-                        className={`flex items-center space-x-1 transition-all duration-300 transform ${
+                        className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-all duration-200 transform ${
                             isAnimating ? 'scale-110' : 'scale-100'
                         } ${
-                            cheerCount > 0 ? 'text-purple-500' : 'text-gray-600 hover:text-purple-500'
+                            cheerCount > 0 ? 'text-purple-500 bg-purple-50' : 'text-gray-500 hover:text-purple-500 hover:bg-purple-50'
                         }`}
                     >
                         <Megaphone 
-                            size={18} 
+                            size={16} 
                             className={`${isAnimating ? 'animate-pulse' : ''}`}
                             fill={cheerCount > 0 ? 'currentColor' : 'none'} 
                         />
                         <span className="text-sm font-medium">{cheerCount > 0 ? cheerCount : 'Call'}</span>
                     </button>
+                    
                     <button 
                         onClick={handleBookmark}
-                        className={`flex items-center space-x-1 transition-colors ${
-                            bookmarked ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-500'
+                        className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-all duration-200 ${
+                            bookmarked ? 'text-amber-500 bg-amber-50' : 'text-gray-500 hover:text-amber-500 hover:bg-amber-50'
                         }`}
                     >
-                        <Bookmark size={18} fill={bookmarked ? 'currentColor' : 'none'} />
-                        <span className="text-sm">{localStats.bookmarks}</span>
+                        <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} />
+                        <span className="text-sm font-medium">{localStats.bookmarks}</span>
                     </button>
-                </div>
-            </div>
+                </footer>
+            </article>
         );
     };
 
     return (
-        <div className="min-h-screen bg-gray-50" ref={containerRef}>
-            {/* 顶部搜索栏 */}
-            <div className="bg-white shadow-sm sticky top-0 z-10">
-                <div className="max-w-2xl mx-auto px-4 py-3">
+        <div className="min-h-screen bg-white" ref={containerRef}>
+            {/* 极简顶部搜索栏 */}
+            <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+                <div className="max-w-3xl mx-auto px-6 py-6">
                     <form onSubmit={handleSearch} className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="搜索你想学习的主题..."
-                            className="w-full pl-10 pr-4 py-3 rounded-full border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                            placeholder="Search for knowledge..."
+                            className="w-full pl-12 pr-4 py-4 rounded-full border-2 border-gray-200 focus:border-gray-900 focus:ring-4 focus:ring-gray-900/10 outline-none transition-all duration-200 text-lg"
                         />
                     </form>
                 </div>
-            </div>
+            </header>
 
-            {/* 下拉刷新指示器 */}
+            {/* 下拉刷新指示器 - 极简设计 */}
             {pullDistance > 0 && (
                 <div 
-                    className="absolute top-16 left-0 right-0 flex justify-center transition-all duration-200 z-20"
+                    className="absolute top-20 left-0 right-0 flex justify-center transition-all duration-200 z-20"
                     style={{ 
                         transform: `translateY(${Math.min(pullDistance, 100)}px)`,
                         opacity: Math.min(pullDistance / 80, 1)
                     }}
                 >
-                    <div className={`p-3 rounded-full ${pullDistance > 80 ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                    <div className={`p-3 rounded-full transition-all duration-200 ${pullDistance > 80 ? 'bg-gray-900' : 'bg-gray-300'}`}>
                         <RefreshCw 
-                            size={24} 
+                            size={20} 
                             className={`text-white ${isRefreshing ? 'animate-spin' : ''}`}
                         />
                     </div>
@@ -450,70 +434,76 @@ const HomePage = () => {
             )}
 
             {/* 主内容区域 */}
-            <div 
+            <main 
                 ref={scrollRef}
-                className="max-w-2xl mx-auto px-4 py-6 overflow-y-auto"
-                style={{ height: 'calc(100vh - 64px)' }}
+                className="max-w-3xl mx-auto px-6 py-12 overflow-y-auto"
+                style={{ height: 'calc(100vh - 100px)' }}
                 onScroll={handleScroll}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
             >
-                {/* 欢迎信息 */}
-                <div className="bg-black rounded-lg text-white p-6 mb-6">
-                    <h1 className="text-2xl font-bold mb-2">欢迎来到知识分享社区</h1>
-                    <p className="text-gray-300">
-                        这里有调香师、古籍修复师等小众职业者的独特见解，
-                        也有用小知识解决生活难题的温暖故事。
-                        每个人都是某个领域的"专家"！
+                {/* 极简欢迎区域 */}
+                <section className="mb-16 text-center">
+                    <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                        Knowledge 
+                        <span className="relative inline-block mx-2">
+                            <span className="relative z-10 font-hand text-4xl md:text-5xl italic">feed</span>
+                            <svg 
+                                className="absolute -bottom-1 left-0 w-full" 
+                                height="8" 
+                                viewBox="0 0 120 8"
+                            >
+                                <path 
+                                    d="M4 4 Q60 1 116 4" 
+                                    stroke="#FFD93D" 
+                                    strokeWidth="3" 
+                                    fill="none"
+                                    strokeLinecap="round"
+                                />
+                            </svg>
+                        </span>
+                    </h1>
+                    <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                        Discover unique insights from professionals and everyday experts
                     </p>
                     <button 
                         onClick={handleManualRefresh}
                         disabled={isRefreshing}
-                        className="mt-3 bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+                        className="mt-6 px-6 py-3 bg-gray-900 text-white rounded-full font-medium hover:bg-gray-800 transition-all duration-200 flex items-center space-x-2 mx-auto disabled:opacity-50"
                     >
                         <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-                        <span>刷新内容</span>
+                        <span>Fresh content</span>
                     </button>
-                </div>
+                </section>
 
-                {/* 错误提示 */}
+                {/* 错误提示 - 极简样式 */}
                 {error && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                    <div className="bg-red-50 border border-red-100 text-red-700 px-6 py-4 rounded-lg mb-8 text-center">
                         {error}
                     </div>
                 )}
 
-                {/* 加载中状态 */}
+                {/* 加载中状态 - 极简设计 */}
                 {isLoading && posts.length === 0 ? (
-                    <div className="text-center py-12">
-                        <Loader className="animate-spin h-8 w-8 text-blue-500 mx-auto mb-4" />
-                        <p className="text-gray-600">正在加载精彩内容...</p>
+                    <div className="text-center py-20">
+                        <Loader className="animate-spin h-8 w-8 text-gray-900 mx-auto mb-4" />
+                        <p className="text-gray-600">Loading amazing content...</p>
                     </div>
                 ) : (
                     <>
                         {/* 打Call排行榜 */}
                         <CheerLeaderboard />
                         
-                        {/* 知识流 */}
+                        {/* 推荐用户组件 */}
+                        {showRecommendations && (
+                            <RecommendedUsers 
+                                onClose={() => setShowRecommendations(false)}
+                            />
+                        )}
+                        
+                        {/* 知识动态流 */}
                         <div>
-                            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-between">
-                                <span>知识推荐流</span>
-                                {isRefreshing && (
-                                    <span className="text-sm text-blue-500 flex items-center">
-                                        <Loader className="animate-spin h-4 w-4 mr-1" />
-                                        刷新中...
-                                    </span>
-                                )}
-                            </h2>
-                            
-                            {/* 推荐用户组件 */}
-                            {showRecommendations && (
-                                <RecommendedUsers 
-                                    onClose={() => setShowRecommendations(false)}
-                                />
-                            )}
-                            
                             {posts.map((post, index) => (
                                 <div key={post.id}>
                                     <PostCard post={post} />
@@ -525,25 +515,34 @@ const HomePage = () => {
                             ))}
                         </div>
 
-                        {/* 加载更多 */}
+                        {/* 加载更多 - 极简样式 */}
                         {isLoadingMore ? (
-                            <div className="text-center py-6">
-                                <Loader className="animate-spin h-6 w-6 text-blue-500 mx-auto mb-2" />
-                                <p className="text-gray-500">加载更多内容...</p>
+                            <div className="text-center py-12">
+                                <Loader className="animate-spin h-6 w-6 text-gray-900 mx-auto mb-3" />
+                                <p className="text-gray-500">Loading more...</p>
                             </div>
                         ) : (
-                            <div className="text-center py-6">
+                            <div className="text-center py-12">
                                 <button 
                                     onClick={loadMore}
-                                    className="text-blue-500 hover:text-blue-600 font-medium"
+                                    className="px-8 py-3 border-2 border-gray-200 text-gray-700 rounded-full font-medium hover:border-gray-900 hover:text-gray-900 transition-all duration-200"
                                 >
-                                    点击加载更多
+                                    Load more
                                 </button>
                             </div>
                         )}
                     </>
                 )}
-            </div>
+            </main>
+
+            {/* 自定义字体 */}
+            <style jsx>{`
+                @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap');
+                
+                .font-hand {
+                    font-family: 'Permanent Marker', cursive;
+                }
+            `}</style>
         </div>
     );
 };
