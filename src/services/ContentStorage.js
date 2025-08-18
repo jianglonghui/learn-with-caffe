@@ -48,9 +48,10 @@ class ContentStorage {
     }
 
     getDefaultUsers() {
-        return {
-            'xiaoyu': {
-                id: 'xiaoyu',
+        // 为默认用户也使用一致的ID生成逻辑
+        const users = {};
+        const defaultUserData = [
+            {
                 name: '调香师小雅',
                 avatar: '🌸',
                 expertise: '调香师',
@@ -69,8 +70,7 @@ class ContentStorage {
                     '🎓 IFA国际芳疗师认证'
                 ]
             },
-            'laochen': {
-                id: 'laochen',
+            {
                 name: '古籍修复师老陈',
                 avatar: '📜',
                 expertise: '古籍修复师',
@@ -89,8 +89,7 @@ class ContentStorage {
                     '🎓 故宫博物院特聘专家'
                 ]
             },
-            'linainai': {
-                id: 'linainai',
+            {
                 name: '退休教师李奶奶',
                 avatar: '👵',
                 expertise: '生活达人',
@@ -109,7 +108,18 @@ class ContentStorage {
                     '📚 生活智慧达人'
                 ]
             }
-        };
+        ];
+        
+        // 使用统一的ID生成逻辑
+        defaultUserData.forEach(userData => {
+            const id = this.generateUserIdFromName(userData.name);
+            users[id] = {
+                id,
+                ...userData
+            };
+        });
+        
+        return users;
     }
 
     // 保存主页推文
@@ -258,73 +268,10 @@ class ContentStorage {
 
     // 生成用户ID (公共方法)
     generateUserIdFromName(name) {
-        const userIdMap = {
-            '调香师小雅': 'xiaoyu',
-            '古籍修复师老陈': 'laochen',
-            '退休教师李奶奶': 'linainai'
-        };
-        
-        if (userIdMap[name]) {
-            return userIdMap[name];
-        }
-        
-        // 对于其他用户名，使用哈希或简单编码
-        // 提取职业和关键词
-        let id = '';
-        
-        // 常见职业映射
-        const professionMap = {
-            '教授': 'prof',
-            '博士': 'dr',
-            '老师': 'teacher',
-            '专家': 'expert',
-            '师傅': 'master',
-            '达人': 'expert',
-            '大师': 'master'
-        };
-        
-        // 学科映射
-        const subjectMap = {
-            '心理学': 'psychology',
-            '物理': 'physics',
-            '化学': 'chemistry',
-            '生物': 'biology',
-            '数学': 'math',
-            '历史': 'history',
-            '地理': 'geography',
-            '语言': 'language',
-            '文学': 'literature',
-            '艺术': 'art',
-            '音乐': 'music',
-            '体育': 'sports',
-            '医学': 'medicine',
-            '工程': 'engineering',
-            '计算机': 'computer',
-            '经济': 'economics',
-            '法律': 'law',
-            '哲学': 'philosophy'
-        };
-        
-        // 寻找学科
-        for (const [chinese, english] of Object.entries(subjectMap)) {
-            if (name.includes(chinese)) {
-                id += english + '_';
-                break;
-            }
-        }
-        
-        // 寻找职业
-        for (const [chinese, english] of Object.entries(professionMap)) {
-            if (name.includes(chinese)) {
-                id += english;
-                break;
-            }
-        }
-        
-        // 如果没有匹配到，使用简单的数字ID
-        if (!id) {
-            id = 'user_' + Math.abs(this.simpleHash(name));
-        }
+        // 移除硬编码映射，让所有用户都使用一致的ID生成逻辑
+        // 直接使用名字的hash值作为ID，确保唯一性和一致性
+        const hash = Math.abs(this.simpleHash(name));
+        const id = 'user_' + hash;
         
         return id;
     }
@@ -456,6 +403,7 @@ class ContentStorage {
         const users = JSON.parse(localStorage.getItem(this.USERS_KEY) || '{}');
         const userPosts = JSON.parse(localStorage.getItem(this.USER_POSTS_KEY) || '{}');
         const posts = JSON.parse(localStorage.getItem(this.POSTS_KEY) || '[]');
+        let hasChanges = false;
         
         // 如果存在空字符串用户ID，需要修复
         if (users['']) {
@@ -482,12 +430,58 @@ class ContentStorage {
                 return post;
             });
             
-            // 保存修复后的数据
+            hasChanges = true;
+        }
+        
+        // 检查并修复所有用户ID与名字的一致性
+        const usersCopy = { ...users }; // 创建副本以避免在迭代时修改
+        Object.entries(usersCopy).forEach(([currentId, user]) => {
+            if (user.name) {
+                const expectedId = this.generateUserIdFromName(user.name);
+                if (currentId !== expectedId) {
+                    console.log(`发现ID不一致: 用户"${user.name}" 当前ID="${currentId}" 应为="${expectedId}"`);
+                    
+                    // 如果目标ID不存在，迁移数据
+                    if (!users[expectedId]) {
+                        console.log(`迁移用户数据: ${currentId} -> ${expectedId}`);
+                        users[expectedId] = { ...user, id: expectedId };
+                        delete users[currentId];
+                        
+                        // 迁移用户推文
+                        if (userPosts[currentId]) {
+                            userPosts[expectedId] = userPosts[currentId];
+                            delete userPosts[currentId];
+                        }
+                        
+                        // 迁移用户博客文章
+                        const userBlogPosts = JSON.parse(localStorage.getItem(this.USER_BLOG_POSTS_KEY) || '{}');
+                        if (userBlogPosts[currentId]) {
+                            userBlogPosts[expectedId] = userBlogPosts[currentId];
+                            delete userBlogPosts[currentId];
+                            localStorage.setItem(this.USER_BLOG_POSTS_KEY, JSON.stringify(userBlogPosts));
+                        }
+                        
+                        // 更新关注列表
+                        const following = JSON.parse(localStorage.getItem(this.FOLLOWING_KEY) || '[]');
+                        const updatedFollowing = following.map(id => id === currentId ? expectedId : id);
+                        if (JSON.stringify(following) !== JSON.stringify(updatedFollowing)) {
+                            localStorage.setItem(this.FOLLOWING_KEY, JSON.stringify(updatedFollowing));
+                        }
+                        
+                        hasChanges = true;
+                    } else {
+                        console.log(`目标ID ${expectedId} 已存在，保留原数据`);
+                    }
+                }
+            }
+        });
+        
+        // 保存修复后的数据
+        if (hasChanges) {
             localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
             localStorage.setItem(this.USER_POSTS_KEY, JSON.stringify(userPosts));
-            localStorage.setItem(this.POSTS_KEY, JSON.stringify(updatedPosts));
-            
-            console.log('用户数据修复完成');
+            localStorage.setItem(this.POSTS_KEY, JSON.stringify(posts));
+            console.log('✅ 用户数据修复完成');
         }
     }
 
@@ -593,7 +587,29 @@ class ContentStorage {
         localStorage.removeItem(this.FOLLOWING_KEY);
         localStorage.removeItem(this.LIKES_KEY);
         localStorage.removeItem(this.BOOKMARKS_KEY);
+        localStorage.removeItem(this.USER_BLOG_POSTS_KEY);
+        localStorage.removeItem(this.RECOMMENDATIONS_KEY);
+        localStorage.removeItem(this.CHEERS_KEY);
         this.initializeStorage();
+        console.log('🗑️ 所有数据已清除并重新初始化');
+    }
+    
+    // 清除AI生成的数据，保留默认用户
+    clearGeneratedData() {
+        const defaultUsers = this.getDefaultUsers();
+        localStorage.setItem(this.USERS_KEY, JSON.stringify(defaultUsers));
+        localStorage.removeItem(this.POSTS_KEY);
+        localStorage.removeItem(this.USER_POSTS_KEY);
+        localStorage.removeItem(this.USER_BLOG_POSTS_KEY);
+        localStorage.removeItem(this.RECOMMENDATIONS_KEY);
+        
+        // 重新初始化空数据
+        localStorage.setItem(this.POSTS_KEY, JSON.stringify([]));
+        localStorage.setItem(this.USER_POSTS_KEY, JSON.stringify({}));
+        localStorage.setItem(this.USER_BLOG_POSTS_KEY, JSON.stringify({}));
+        localStorage.setItem(this.RECOMMENDATIONS_KEY, JSON.stringify({}));
+        
+        console.log('🧹 AI生成的数据已清除，默认用户已保留');
     }
 
     // 导出数据（用于备份）
