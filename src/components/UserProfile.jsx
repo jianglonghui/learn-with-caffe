@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserPlus, UserCheck, MoreHorizontal, MapPin, Calendar, Link2, Verified, BookOpen, Clock, Tag, ChevronRight } from 'lucide-react';
+import { ArrowLeft, UserPlus, UserCheck, MoreHorizontal, MapPin, Calendar, Link2, Verified, BookOpen, Clock, Tag, ChevronRight, Heart, MessageCircle, Bookmark } from 'lucide-react';
 import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
 
@@ -319,8 +319,17 @@ const UserProfile = () => {
                             <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
                                 {/* 头像 */}
                                 <div className="relative">
-                                    <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-6xl border-4 border-white shadow-xl">
-                                        {userData.avatar}
+                                    <img
+                                        src={userData.avatar}
+                                        alt={userData.name}
+                                        className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-xl bg-gradient-to-r from-blue-100 to-purple-100"
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            e.target.nextSibling.style.display = 'flex';
+                                        }}
+                                    />
+                                    <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-6xl border-4 border-white shadow-xl" style={{display: 'none'}}>
+                                        😊
                                     </div>
                                     {userData.verified && (
                                         <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
@@ -470,8 +479,17 @@ const UserProfile = () => {
                                 {/* 帖子头部 */}
                                 <div className="p-6 pb-4">
                                     <div className="flex items-center space-x-4 mb-4">
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-xl border-2 border-white shadow-sm">
-                                            {userData.avatar}
+                                        <img
+                                            src={userData.avatar}
+                                            alt={userData.name}
+                                            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm bg-gradient-to-r from-blue-100 to-purple-100"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                        />
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-xl border-2 border-white shadow-sm" style={{display: 'none'}}>
+                                            😊
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="font-semibold text-gray-900">{userData.name}</h3>
@@ -545,62 +563,98 @@ const UserProfile = () => {
                 )}
 
                 {activeTab === 'blogs' && (
-                    <div className="space-y-6">
+                    <div className="bg-white">
                         {blogPosts.length > 0 ? (
-                            blogPosts.map((post) => (
-                                <article
-                                    key={post.id}
-                                    onClick={() => navigate(`/user/${userId}/blog/${post.id}`)}
-                                    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300 cursor-pointer group overflow-hidden"
-                                >
-                                    {/* 分类标签 */}
-                                    <div className="mb-4">
-                                        <span className="inline-block px-3 py-1 text-sm font-semibold text-blue-600 bg-blue-50 rounded-full border border-blue-100">
-                                            {post.category}
-                                        </span>
-                                    </div>
-                                    
-                                    {/* 文章标题 */}
-                                    <h3 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
-                                        {post.title}
-                                    </h3>
-                                    
-                                    {/* 文章预览 */}
-                                    <p className="text-gray-600 mb-4 line-clamp-3 leading-relaxed text-lg">
-                                        {post.preview}
-                                    </p>
-                                    
-                                    {/* 文章元信息 */}
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-6 text-sm text-gray-500">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                                                    <Clock className="w-3 h-3" />
+                            <div className="divide-y divide-gray-100">
+                                {blogPosts.map((post, index) => (
+                                    <article
+                                        key={post.id}
+                                        onClick={() => navigate(`/user/${userId}/blog/${post.id}`)}
+                                        className="p-8 hover:bg-gray-50 transition-colors duration-200 cursor-pointer group"
+                                    >
+                                        <div className="flex gap-8">
+                                            {/* 左侧：主要内容 */}
+                                            <div className="flex-1 min-w-0">
+                                                {/* 作者信息和分类 */}
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <img
+                                                            src={userData.avatar}
+                                                            alt={userData.name}
+                                                            className="w-6 h-6 rounded-full object-cover bg-gray-100"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                                e.target.nextSibling.style.display = 'flex';
+                                                            }}
+                                                        />
+                                                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-sm" style={{display: 'none'}}>
+                                                            😊
+                                                        </div>
+                                                        <span className="text-sm text-gray-600 font-medium">{userData.name}</span>
+                                                    </div>
+                                                    <span className="text-gray-300">•</span>
+                                                    <span className="text-sm text-gray-500">{post.category}</span>
                                                 </div>
-                                                <span>{post.readTime}</span>
+                                                
+                                                {/* 文章标题 - 大号粗体黑字 */}
+                                                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-gray-700 transition-colors leading-tight">
+                                                    {post.title}
+                                                </h3>
+                                                
+                                                {/* 文章摘要 - 小一号灰色字体 */}
+                                                <p className="text-gray-600 mb-4 leading-relaxed line-clamp-2">
+                                                    {post.preview}
+                                                </p>
+                                                
+                                                {/* 交互区 - 小图标 + 数字 */}
+                                                <div className="flex items-center gap-6 text-sm text-gray-500">
+                                                    <div className="flex items-center gap-1">
+                                                        <Clock className="w-4 h-4" />
+                                                        <span>{post.readTime}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <Heart className="w-4 h-4" />
+                                                        <span>{Math.floor(Math.random() * 500) + 50}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <MessageCircle className="w-4 h-4" />
+                                                        <span>{Math.floor(Math.random() * 50) + 5}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <Bookmark className="w-4 h-4" />
+                                                        <span>{Math.floor(Math.random() * 100) + 10}</span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                                                    <Tag className="w-3 h-3" />
-                                                </div>
-                                                <span>{post.tags[0]}</span>
+                                            
+                                            {/* 右侧：缩略图作为视觉锚点 */}
+                                            <div className="w-32 h-24 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center group-hover:from-blue-50 group-hover:to-purple-50 transition-colors duration-200">
+                                                {post.tags && post.tags[0] && (
+                                                    <div className="text-center">
+                                                        <div className="text-2xl opacity-60 mb-1">
+                                                            {post.tags[0] === '调香知识' ? '🌸' : 
+                                                             post.tags[0] === '古籍修复' ? '📜' : 
+                                                             post.tags[0] === '生活技巧' ? '💡' : 
+                                                             post.tags[0] === '职场' ? '💼' : 
+                                                             post.tags[0] === '技术' ? '💻' : '📖'}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 px-2 py-1 bg-white/50 rounded">
+                                                            {post.tags[0]}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        
-                                        <div className="flex items-center text-blue-600 group-hover:text-blue-700">
-                                            <span className="text-sm font-medium">阅读全文</span>
-                                            <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                                        </div>
-                                    </div>
-                                </article>
-                            ))
+                                    </article>
+                                ))}
+                            </div>
                         ) : (
-                            <div className="text-center py-16">
-                                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <BookOpen className="w-10 h-10 text-gray-400" />
+                            <div className="text-center py-20">
+                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <BookOpen className="w-8 h-8 text-gray-400" />
                                 </div>
-                                <p className="text-gray-500 text-lg mb-2">暂无长文</p>
-                                <p className="text-gray-400 text-sm">作者还未发布任何长文内容</p>
+                                <p className="text-gray-600 text-lg mb-2">暂无长文</p>
+                                <p className="text-gray-400">作者还未发布任何长文内容</p>
                             </div>
                         )}
                     </div>

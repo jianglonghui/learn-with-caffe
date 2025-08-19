@@ -3,6 +3,7 @@ import { Users, UserPlus, Sparkles, RefreshCw, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
+import { getRandomAvatar } from '../utils/avatarUtils';
 
 const RecommendedUsers = ({ onClose }) => {
     const [recommendedUsers, setRecommendedUsers] = useState([]);
@@ -58,6 +59,7 @@ const RecommendedUsers = ({ onClose }) => {
                 const users = result.users.map(user => ({
                     ...user,
                     id: contentStorage.generateUserIdFromName(user.name),
+                    avatar: getRandomAvatar(), // 为每个推荐用户分配随机头像
                     followers: Math.floor(Math.random() * 50000) + 1000,
                     following: Math.floor(Math.random() * 1000) + 50,
                     postsCount: Math.floor(Math.random() * 500) + 10,
@@ -194,8 +196,17 @@ const RecommendedUsers = ({ onClose }) => {
                                     onClick={() => handleUserClick(user)}
                                 >
                                     <div className="relative">
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-xl border-2 border-white shadow-sm">
-                                            {user.avatar}
+                                        <img
+                                            src={user.avatar}
+                                            alt={user.name}
+                                            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                        />
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-xl border-2 border-white shadow-sm" style={{display: 'none'}}>
+                                            😊
                                         </div>
                                         {user.verified && (
                                             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">

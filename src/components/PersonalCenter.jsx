@@ -390,7 +390,20 @@ const PersonalCenter = memo(() => {
                 {followingUsers.map((user) => (
                   <div key={user.id} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-center mb-4">
-                      <div className="text-3xl mr-3">{user.avatar}</div>
+                      <div className="w-12 h-12 mr-3 rounded-full overflow-hidden flex-shrink-0">
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-2xl" style={{display: 'none'}}>
+                          😊
+                        </div>
+                      </div>
                       <div className="flex-1">
                         <h4 className="font-semibold text-black flex items-center">
                           {user.name}

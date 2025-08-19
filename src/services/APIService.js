@@ -576,7 +576,6 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
   "users": [
     {
       "name": "博主名称",
-      "avatar": "emoji头像", 
       "expertise": "专业身份（重点突出实用性）",
       "verified": true/false,
       "bio": "个人简介（50-80字，强调能解决什么实际问题，有什么成功案例）",
@@ -630,7 +629,6 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
     {
       "id": "unique_id",
       "expertName": "分享者名称",
-      "expertAvatar": "emoji图标",
       "expertise": "身份/职业",
       "verified": true/false,
       "content": "实用内容分享（120-180字，直接给出可操作的建议或技巧）",

@@ -109,16 +109,34 @@ const CheerLeaderboard = () => {
                                     {/* 头像容器 */}
                                     <div className="relative">
                                         <div className={`
-                                            ${podium.position === 1 ? 'w-16 h-16 text-3xl' : 
-                                              podium.position === 2 ? 'w-14 h-14 text-2xl' : 'w-12 h-12 text-xl'}
+                                            ${podium.position === 1 ? 'w-16 h-16' : 
+                                              podium.position === 2 ? 'w-14 h-14' : 'w-12 h-12'}
                                             rounded-full bg-gradient-to-r ${
                                                 podium.position === 1 ? 'from-yellow-100 to-orange-100 border-4 border-yellow-300' :
                                                 podium.position === 2 ? 'from-gray-100 to-slate-100 border-3 border-gray-300' :
                                                 'from-orange-100 to-red-100 border-2 border-orange-300'
                                             } 
-                                            flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow
+                                            overflow-hidden shadow-lg group-hover:shadow-xl transition-shadow
                                         `}>
-                                            {podium.user.avatar}
+                                            <img
+                                                src={podium.user.avatar}
+                                                alt={podium.user.name}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.nextSibling.style.display = 'flex';
+                                                }}
+                                            />
+                                            <div className={`w-full h-full bg-gradient-to-r ${
+                                                podium.position === 1 ? 'from-yellow-100 to-orange-100' :
+                                                podium.position === 2 ? 'from-gray-100 to-slate-100' :
+                                                'from-orange-100 to-red-100'
+                                            } flex items-center justify-center ${
+                                                podium.position === 1 ? 'text-3xl' : 
+                                                podium.position === 2 ? 'text-2xl' : 'text-xl'
+                                            }`} style={{display: 'none'}}>
+                                                😊
+                                            </div>
                                         </div>
                                         
                                         {/* 排名徽章 */}

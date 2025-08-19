@@ -5,6 +5,7 @@ import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
 import RecommendedUsers from './RecommendedUsers';
 import CheerLeaderboard from './CheerLeaderboard';
+import { getRandomAvatar } from '../utils/avatarUtils';
 
 const MinimalistFeedPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -29,7 +30,7 @@ const MinimalistFeedPage = () => {
             {
                 id: 'static-1',
                 expertName: '调香师小雅',
-                expertAvatar: '🌸',
+                expertAvatar: getRandomAvatar(),
                 expertise: '调香师',
                 verified: true,
                 content: '今天有位老奶奶想要"初恋的味道"。我调了橙花、白茶和一点麝香，她闻了之后眼眶红了，说就是60年前那个夏天的味道。这就是调香师最幸福的时刻。',
@@ -78,6 +79,7 @@ const MinimalistFeedPage = () => {
                 const newPosts = result.posts.map(post => ({
                     ...post,
                     id: `ai-${Date.now()}-${Math.random()}`,
+                    expertAvatar: getRandomAvatar(), // 为AI生成的帖子分配随机头像
                     likes: Math.floor(Math.random() * 500) + 50,
                     comments: Math.floor(Math.random() * 100) + 5,
                     shares: Math.floor(Math.random() * 50) + 2,

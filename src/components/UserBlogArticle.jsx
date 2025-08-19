@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, Tag, Share2, Bookmark, Heart } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, UserPlus, UserCheck } from 'lucide-react';
 import LoadingSpinner from './common/LoadingSpinner';
 import contentStorage from '../services/ContentStorage';
 import APIService from '../services/APIService';
+import CommentSection from './CommentSection';
 
 const UserBlogArticle = () => {
   const { userId, postId } = useParams();
@@ -14,6 +15,8 @@ const UserBlogArticle = () => {
   const [bookmarked, setBookmarked] = useState(false);
   const [userData, setUserData] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const apiService = APIService.getInstance();
 
   // 生成完整文章内容
@@ -132,6 +135,7 @@ const UserBlogArticle = () => {
           return;
         }
         setUserData(user);
+        setIsFollowing(contentStorage.isFollowing(userId));
 
         // 获取博客文章基本信息
         const blogPost = contentStorage.getUserBlogPost(userId, postId);
@@ -150,6 +154,8 @@ const UserBlogArticle = () => {
         }
         
         setArticle(fullArticle);
+        // 设置随机点赞数
+        setLikeCount(Math.floor(Math.random() * 1000) + 100);
       } catch (error) {
         console.error('Error loading article:', error);
         navigate(`/user/${userId}`);
@@ -178,12 +184,26 @@ const UserBlogArticle = () => {
     }
   };
 
+  const handleFollow = () => {
+    if (isFollowing) {
+      contentStorage.unfollowUser(userId);
+    } else {
+      contentStorage.followUser(userId);
+    }
+    setIsFollowing(!isFollowing);
+  };
+
+  const handleLike = () => {
+    setLiked(!liked);
+    setLikeCount(prev => liked ? prev - 1 : prev + 1);
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <LoadingSpinner />
-          <p className="mt-4 text-gray-600">正在生成文章内容...</p>
+          <p className="mt-4 text-gray-600">正在加载文章...</p>
         </div>
       </div>
     );
@@ -194,191 +214,294 @@ const UserBlogArticle = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        {/* 返回按钮 */}
-        <button
-          onClick={handleBack}
-          className="mb-6 flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span>返回 {userData.name} 的主页</span>
-        </button>
-
-        {/* 文章容器 */}
-        <article className="bg-white rounded-xl shadow-lg overflow-hidden">
-          {/* 文章头部 */}
-          <div className="p-6 md:p-8 border-b border-gray-100">
-            {/* 分类 */}
-            <div className="mb-4">
-              <span className="inline-block px-3 py-1 text-sm font-semibold text-blue-600 bg-blue-100 rounded-full">
-                {article.category}
-              </span>
-            </div>
-
-            {/* 标题 */}
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">
-              {article.title}
-            </h1>
-
-            {/* 作者信息 */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="text-3xl">{userData.avatar}</div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-800">{userData.name}</span>
-                  {userData.verified && <span className="text-blue-500">✓</span>}
-                </div>
-                <p className="text-sm text-gray-600">{userData.expertise}</p>
-              </div>
-            </div>
-
-            {/* 元信息 */}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-              <div className="flex items-center gap-1">
-                <Calendar className="w-4 h-4" />
-                <span>{article.date}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="w-4 h-4" />
-                <span>{article.readTime}</span>
-              </div>
-            </div>
-
-            {/* 标签 */}
-            {article.tags && (
-              <div className="flex flex-wrap gap-2 mt-4">
-                {article.tags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded"
-                  >
-                    <Tag className="w-3 h-3" />
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 文章内容 */}
-          <div className="p-6 md:p-8">
-            <div className="prose prose-base max-w-none">
-              {article.content.split('\n').map((paragraph, index) => {
-                // 处理标题
-                if (paragraph.startsWith('# ')) {
-                  return <h1 key={index} className="text-2xl font-bold mt-6 mb-4 text-gray-800">{paragraph.slice(2)}</h1>;
-                } else if (paragraph.startsWith('## ')) {
-                  return <h2 key={index} className="text-xl font-bold mt-5 mb-3 text-gray-800">{paragraph.slice(3)}</h2>;
-                } else if (paragraph.startsWith('### ')) {
-                  return <h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-gray-800">{paragraph.slice(4)}</h3>;
-                }
-                
-                // 处理强调文本
-                if (paragraph.startsWith('**') && paragraph.endsWith('**')) {
-                  const text = paragraph.slice(2, -2);
-                  if (text.includes('：')) {
-                    return (
-                      <p key={index} className="mb-2 text-gray-700">
-                        <strong className="text-gray-800">{text}</strong>
-                      </p>
-                    );
-                  }
-                  return <p key={index} className="mb-3 font-semibold text-gray-800">{text}</p>;
-                }
-                
-                // 处理列表项
-                if (paragraph.startsWith('- ')) {
-                  return (
-                    <li key={index} className="ml-6 mb-2 text-gray-700 list-disc">
-                      {paragraph.slice(2)}
-                    </li>
-                  );
-                } else if (paragraph.match(/^\d+\. /)) {
-                  return (
-                    <li key={index} className="ml-6 mb-2 text-gray-700 list-decimal">
-                      {paragraph.replace(/^\d+\. /, '')}
-                    </li>
-                  );
-                }
-                
-                // 处理分隔线
-                if (paragraph === '---') {
-                  return <hr key={index} className="my-6 border-gray-200" />;
-                }
-                
-                // 处理斜体（元信息）
-                if (paragraph.startsWith('*') && paragraph.endsWith('*')) {
-                  return (
-                    <p key={index} className="text-sm text-gray-500 italic mt-6">
-                      {paragraph.slice(1, -1)}
-                    </p>
-                  );
-                }
-                
-                // 普通段落
-                if (paragraph.trim()) {
-                  return <p key={index} className="mb-4 text-gray-700 leading-relaxed">{paragraph}</p>;
-                }
-                
-                return null;
-              })}
-            </div>
-          </div>
-
-          {/* 互动栏 */}
-          <div className="p-6 md:p-8 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setLiked(!liked)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${
-                    liked 
-                      ? 'bg-red-100 text-red-600' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
-                  <span className="text-sm">{liked ? '已喜欢' : '喜欢'}</span>
-                </button>
-                
-                <button
-                  onClick={() => setBookmarked(!bookmarked)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${
-                    bookmarked 
-                      ? 'bg-yellow-100 text-yellow-600' 
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  <Bookmark className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`} />
-                  <span className="text-sm">{bookmarked ? '已收藏' : '收藏'}</span>
-                </button>
-              </div>
-              
+    <div className="min-h-screen bg-white">
+      {/* 顶部导航栏 - 极简设计 */}
+      <nav className="border-b border-gray-200 bg-white sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleBack}
+              className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </button>
+            
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
               >
-                <Share2 className="w-4 h-4" />
-                <span className="text-sm">分享</span>
+                <Share2 className="w-5 h-5 text-gray-700" />
+              </button>
+              <button
+                onClick={() => setBookmarked(!bookmarked)}
+                className={`p-2 rounded-full hover:bg-gray-100 transition-colors ${
+                  bookmarked ? 'text-gray-900' : 'text-gray-700'
+                }`}
+              >
+                <Bookmark className={`w-5 h-5 ${bookmarked ? 'fill-current' : ''}`} />
+              </button>
+              <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                <MoreHorizontal className="w-5 h-5 text-gray-700" />
               </button>
             </div>
           </div>
-        </article>
+        </div>
+      </nav>
 
-        {/* 作者其他文章推荐 */}
-        <div className="mt-6 p-5 bg-white rounded-xl shadow-sm">
-          <h3 className="text-lg font-bold text-gray-800 mb-3">更多来自 {userData.name} 的文章</h3>
-          <div className="space-y-2">
-            <button 
-              onClick={() => navigate(`/user/${userId}`)}
-              className="text-blue-600 hover:text-blue-700 text-sm"
-            >
-              查看全部文章 →
-            </button>
+      {/* 文章主体 - Medium风格布局 */}
+      <article className="max-w-3xl mx-auto px-4 py-10">
+        {/* 文章标题 - 醒目大字号 */}
+        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight mb-8">
+          {article.title}
+        </h1>
+
+        {/* 文章描述/副标题 */}
+        <p className="text-xl text-gray-600 leading-relaxed mb-10">
+          {article.preview}
+        </p>
+
+        {/* 作者信息栏 */}
+        <div className="flex items-center justify-between mb-12 pb-8 border-b border-gray-200">
+          <div className="flex items-center gap-4">
+            {/* 作者头像 */}
+            <img
+              src={userData.avatar}
+              alt={userData.name}
+              className="w-12 h-12 rounded-full object-cover bg-gray-100"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-2xl" style={{display: 'none'}}>
+              😊
+            </div>
+            
+            {/* 作者信息 */}
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 
+                  className="text-base font-medium text-gray-900 hover:underline cursor-pointer"
+                  onClick={() => navigate(`/user/${userId}`)}
+                >
+                  {userData.name}
+                </h3>
+                {userData.verified && <span className="text-blue-500 text-sm">✓</span>}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span>{article.readTime} · {article.date}</span>
+                <span>·</span>
+                <button className="text-green-600 hover:text-green-700">
+                  Member-only story
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 关注按钮 */}
+          <button
+            onClick={handleFollow}
+            className={`px-4 py-2 rounded-full font-medium transition-all ${
+              isFollowing
+                ? 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                : 'text-white bg-gray-900 hover:bg-gray-800'
+            }`}
+          >
+            {isFollowing ? 'Following' : 'Follow'}
+          </button>
+        </div>
+
+        {/* 文章内容 - 优化排版 */}
+        <div className="prose prose-lg max-w-none">
+          {article.content.split('\n').map((paragraph, index) => {
+            // 处理一级标题
+            if (paragraph.startsWith('# ')) {
+              return (
+                <h1 key={index} className="text-3xl font-bold mt-12 mb-6 text-gray-900 leading-tight">
+                  {paragraph.slice(2)}
+                </h1>
+              );
+            }
+            
+            // 处理二级标题
+            if (paragraph.startsWith('## ')) {
+              return (
+                <h2 key={index} className="text-2xl font-bold mt-10 mb-4 text-gray-900 leading-tight">
+                  {paragraph.slice(3)}
+                </h2>
+              );
+            }
+            
+            // 处理三级标题
+            if (paragraph.startsWith('### ')) {
+              return (
+                <h3 key={index} className="text-xl font-semibold mt-8 mb-3 text-gray-900">
+                  {paragraph.slice(4)}
+                </h3>
+              );
+            }
+            
+            // 处理粗体强调文本
+            if (paragraph.startsWith('**') && paragraph.endsWith('**')) {
+              const text = paragraph.slice(2, -2);
+              return (
+                <p key={index} className="font-semibold text-gray-900 my-4">
+                  {text}
+                </p>
+              );
+            }
+            
+            // 处理列表项
+            if (paragraph.startsWith('- ')) {
+              return (
+                <li key={index} className="ml-6 my-2 text-gray-800 text-lg leading-relaxed list-disc">
+                  {paragraph.slice(2)}
+                </li>
+              );
+            }
+            
+            if (paragraph.match(/^\d+\. /)) {
+              return (
+                <li key={index} className="ml-6 my-2 text-gray-800 text-lg leading-relaxed list-decimal">
+                  {paragraph.replace(/^\d+\. /, '')}
+                </li>
+              );
+            }
+            
+            // 处理分隔线
+            if (paragraph === '---') {
+              return <hr key={index} className="my-10 border-gray-200" />;
+            }
+            
+            // 处理斜体文本
+            if (paragraph.startsWith('*') && paragraph.endsWith('*') && !paragraph.startsWith('**')) {
+              return (
+                <p key={index} className="text-gray-600 italic my-4 text-lg leading-relaxed">
+                  {paragraph.slice(1, -1)}
+                </p>
+              );
+            }
+            
+            // 处理图片占位（这里可以添加实际图片）
+            if (paragraph.includes('[图片]')) {
+              return (
+                <div key={index} className="my-10 bg-gray-100 rounded-lg h-96 flex items-center justify-center">
+                  <span className="text-gray-400">图片区域</span>
+                </div>
+              );
+            }
+            
+            // 普通段落 - 优化阅读体验
+            if (paragraph.trim()) {
+              return (
+                <p key={index} className="my-6 text-gray-800 text-lg leading-relaxed">
+                  {paragraph}
+                </p>
+              );
+            }
+            
+            return null;
+          })}
+        </div>
+
+        {/* 文章底部标签 */}
+        {article.tags && article.tags.length > 0 && (
+          <div className="mt-12 pt-8 border-t border-gray-200">
+            <div className="flex flex-wrap gap-2">
+              {article.tags.map((tag, index) => (
+                <button
+                  key={index}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200 transition-colors"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </article>
+
+      {/* 底部交互栏 - 固定悬浮 */}
+      <div className="sticky bottom-0 bg-white border-t border-gray-200">
+        <div className="max-w-3xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            {/* 左侧交互按钮 */}
+            <div className="flex items-center gap-6">
+              <button
+                onClick={handleLike}
+                className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors"
+              >
+                <Heart 
+                  className={`w-6 h-6 ${liked ? 'fill-current text-red-500' : ''}`} 
+                />
+                <span className="text-sm font-medium">{likeCount}</span>
+              </button>
+              
+              <button className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors">
+                <MessageCircle className="w-6 h-6" />
+                <span className="text-sm font-medium">{Math.floor(Math.random() * 50) + 5}</span>
+              </button>
+            </div>
+
+            {/* 右侧操作按钮 */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setBookmarked(!bookmarked)}
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <Bookmark 
+                  className={`w-5 h-5 ${bookmarked ? 'fill-current text-gray-900' : 'text-gray-700'}`} 
+                />
+              </button>
+              
+              <button
+                onClick={handleShare}
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <Share2 className="w-5 h-5 text-gray-700" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* 评论区 */}
+      <CommentSection 
+        articleId={postId} 
+        authorId={userId} 
+        article={article}
+        userData={userData}
+      />
+
+      {/* 作者更多文章推荐 */}
+      <section className="max-w-3xl mx-auto px-4 py-12">
+        <div className="border-t border-gray-200 pt-12">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-2xl font-bold text-gray-900">
+              More from {userData.name}
+            </h3>
+            <button
+              onClick={() => navigate(`/user/${userId}`)}
+              className="text-green-600 hover:text-green-700 font-medium"
+            >
+              See all
+            </button>
+          </div>
+          
+          {/* 推荐文章卡片 */}
+          <div className="grid gap-8">
+            <div className="border-b border-gray-100 pb-6">
+              <h4 className="text-lg font-semibold text-gray-900 mb-2 hover:underline cursor-pointer">
+                探索更多精彩内容
+              </h4>
+              <p className="text-gray-600 line-clamp-2">
+                发现更多来自{userData.name}的独特见解和专业分享...
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

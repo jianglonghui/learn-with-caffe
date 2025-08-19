@@ -5,6 +5,7 @@ import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
 import RecommendedUsers from './RecommendedUsers';
 import CheerLeaderboard from './CheerLeaderboard';
+import { getRandomAvatar } from '../utils/avatarUtils';
 
 const HomePage = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -35,7 +36,7 @@ const HomePage = () => {
             {
                 id: 'static-1',
                 expertName: '调香师小雅',
-                expertAvatar: '🌸',
+                expertAvatar: getRandomAvatar(),
                 expertise: '调香师',
                 verified: true,
                 content: '今天有位老奶奶想要"初恋的味道"。我调了橙花、白茶和一点麝香，她闻了之后眼眶红了，说就是60年前那个夏天的味道。这就是调香师最幸福的时刻。',
@@ -51,7 +52,7 @@ const HomePage = () => {
             {
                 id: 'static-2',
                 expertName: '退休教师李奶奶',
-                expertAvatar: '👵',
+                expertAvatar: getRandomAvatar(),
                 expertise: '生活达人',
                 verified: false,
                 content: '孙子的乐高掉沙发缝里了，用化学课教的"热胀冷缩"原理，冰块敷在沙发腿上，缝隙变大了一点点，终于把乐高钩出来了！70岁还能用上30年前的知识，开心！',
@@ -67,7 +68,7 @@ const HomePage = () => {
             {
                 id: 'static-3',
                 expertName: '古籍修复师老陈',
-                expertAvatar: '📜',
+                expertAvatar: getRandomAvatar(),
                 expertise: '古籍修复师',
                 verified: true,
                 content: '今天修复一本明代医书，书页薄如蝉翼。用传统的"金镶玉"技法，把日本纸浆调成跟原纸一样的颜色，一点点补齐虫蛀的洞。6个小时修了3页，但想到后人还能读到这些智慧，值了。',
@@ -109,6 +110,7 @@ const HomePage = () => {
                 const newPosts = result.posts.map(post => ({
                     ...post,
                     id: `ai-${Date.now()}-${Math.random()}`,
+                    expertAvatar: getRandomAvatar(), // 为AI生成的帖子分配随机头像
                     ...generateRandomStats()
                 }));
 
@@ -316,7 +318,18 @@ const HomePage = () => {
                         className="flex items-center space-x-4 cursor-pointer group"
                         onClick={handleUserClick}
                     >
-                        <div className="text-3xl">{post.expertAvatar}</div>
+                        <img
+                            src={post.expertAvatar}
+                            alt={post.expertName}
+                            className="w-12 h-12 rounded-full object-cover"
+                            onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                            }}
+                        />
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-3xl" style={{display: 'none'}}>
+                            😊
+                        </div>
                         <div>
                             <div className="flex items-center space-x-2">
                                 <h3 className="text-lg font-bold text-gray-900 group-hover:text-gray-700 transition-colors">{post.expertName}</h3>

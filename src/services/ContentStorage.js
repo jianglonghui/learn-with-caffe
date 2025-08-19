@@ -1,4 +1,6 @@
 // 内容持久化存储服务
+import { getRandomAvatar } from '../utils/avatarUtils.js';
+
 class ContentStorage {
     constructor() {
         this.POSTS_KEY = 'knowledge_posts';
@@ -53,7 +55,7 @@ class ContentStorage {
         const defaultUserData = [
             {
                 name: '调香师小雅',
-                avatar: '🌸',
+                avatar: getRandomAvatar(),
                 expertise: '调香师',
                 verified: true,
                 bio: '独立调香师｜芳疗师认证｜用香味记录生活的美好瞬间。相信每个人都有属于自己的味道，帮助过500+客人找到专属香氛。',
@@ -72,7 +74,7 @@ class ContentStorage {
             },
             {
                 name: '古籍修复师老陈',
-                avatar: '📜',
+                avatar: getRandomAvatar(),
                 expertise: '古籍修复师',
                 verified: true,
                 bio: '国家图书馆古籍修复中心｜30年修书匠人｜让时光倒流，让智慧传承。修复过宋元明清古籍2000余册。',
@@ -91,7 +93,7 @@ class ContentStorage {
             },
             {
                 name: '退休教师李奶奶',
-                avatar: '👵',
+                avatar: getRandomAvatar(),
                 expertise: '生活达人',
                 verified: false,
                 bio: '退休中学化学老师｜三个孙子的奶奶｜用知识让生活更有趣。分享我的生活小智慧，希望能帮到大家。',
@@ -247,7 +249,7 @@ class ContentStorage {
             users[userId] = {
                 id: userId,
                 name: post.expertName,
-                avatar: post.expertAvatar,
+                avatar: getRandomAvatar(),
                 expertise: post.expertise,
                 verified: post.verified || false,
                 bio: `${post.expertise}｜分享专业知识和生活感悟`,
@@ -483,6 +485,20 @@ class ContentStorage {
             localStorage.setItem(this.POSTS_KEY, JSON.stringify(posts));
             console.log('✅ 用户数据修复完成');
         }
+
+        // 检查是否需要更新头像 (一次性操作)
+        const avatarUpdateKey = 'avatar_update_completed_v1';
+        const hasUpdatedAvatars = localStorage.getItem(avatarUpdateKey);
+        
+        if (!hasUpdatedAvatars) {
+            console.log('🎭 首次运行头像随机化更新...');
+            this.updateAllAvatarsToRandom();
+            // 清除推荐用户缓存，确保新生成的推荐用户使用随机头像
+            this.clearRecommendationsCache();
+            console.log('🗑️ 清除推荐用户缓存，确保头像更新生效');
+            localStorage.setItem(avatarUpdateKey, 'true');
+            console.log('✅ 头像随机化更新完成并标记');
+        }
     }
 
     // 关注管理
@@ -612,6 +628,69 @@ class ContentStorage {
         console.log('🧹 AI生成的数据已清除，默认用户已保留');
     }
 
+    // 更新所有现有用户和帖子的头像为随机头像
+    updateAllAvatarsToRandom() {
+        console.log('🎭 开始更新所有头像为随机头像...');
+        
+        // 更新用户数据
+        const users = JSON.parse(localStorage.getItem(this.USERS_KEY) || '{}');
+        let userUpdated = false;
+        Object.keys(users).forEach(userId => {
+            const newAvatar = getRandomAvatar();
+            if (users[userId].avatar !== newAvatar) {
+                users[userId].avatar = newAvatar;
+                userUpdated = true;
+                console.log(`👤 更新用户 ${users[userId].name} 的头像: ${newAvatar}`);
+            }
+        });
+        
+        if (userUpdated) {
+            localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+        }
+        
+        // 更新主页帖子
+        const posts = JSON.parse(localStorage.getItem(this.POSTS_KEY) || '[]');
+        let postsUpdated = false;
+        posts.forEach(post => {
+            if (post.expertAvatar) {
+                const newAvatar = getRandomAvatar();
+                if (post.expertAvatar !== newAvatar) {
+                    post.expertAvatar = newAvatar;
+                    postsUpdated = true;
+                }
+            }
+        });
+        
+        if (postsUpdated) {
+            localStorage.setItem(this.POSTS_KEY, JSON.stringify(posts));
+            console.log(`📝 更新了 ${posts.length} 个主页帖子的头像`);
+        }
+        
+        // 更新用户帖子
+        const userPosts = JSON.parse(localStorage.getItem(this.USER_POSTS_KEY) || '{}');
+        let userPostsUpdated = false;
+        Object.keys(userPosts).forEach(userId => {
+            const userPostList = userPosts[userId];
+            userPostList.forEach(post => {
+                if (post.expertAvatar) {
+                    const newAvatar = getRandomAvatar();
+                    if (post.expertAvatar !== newAvatar) {
+                        post.expertAvatar = newAvatar;
+                        userPostsUpdated = true;
+                    }
+                }
+            });
+        });
+        
+        if (userPostsUpdated) {
+            localStorage.setItem(this.USER_POSTS_KEY, JSON.stringify(userPosts));
+            console.log('📋 更新了用户帖子的头像');
+        }
+        
+        console.log('✅ 所有头像更新完成！');
+        return { userUpdated, postsUpdated, userPostsUpdated };
+    }
+
     // 导出数据（用于备份）
     exportData() {
         return {
@@ -727,6 +806,17 @@ class ContentStorage {
     refreshRecommendations() {
         this.clearRecommendationsCache();
         console.log('🔄 强制刷新推荐，缓存已清除');
+    }
+
+    // 手动刷新所有头像（用于调试和手动更新）
+    refreshAllAvatars() {
+        console.log('🔄 手动刷新所有头像...');
+        // 移除已完成标记，强制重新运行
+        localStorage.removeItem('avatar_update_completed_v1');
+        const result = this.updateAllAvatarsToRandom();
+        localStorage.setItem('avatar_update_completed_v1', 'true');
+        console.log('✅ 手动头像刷新完成！请刷新页面查看效果。');
+        return result;
     }
     
     // 获取缓存统计信息
@@ -929,5 +1019,12 @@ const contentStorage = new ContentStorage();
 
 // 启动时清理过期数据
 contentStorage.cleanupOldCheerData();
+
+// 开发环境下，将ContentStorage实例暴露到全局window对象，方便调试
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    window.contentStorage = contentStorage;
+    console.log('🔧 开发模式：contentStorage 已暴露到 window.contentStorage');
+    console.log('💡 可以使用 window.contentStorage.refreshAllAvatars() 手动刷新所有头像');
+}
 
 export default contentStorage;
