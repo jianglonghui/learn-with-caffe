@@ -5,6 +5,8 @@ import LoadingSpinner from './common/LoadingSpinner';
 import contentStorage from '../services/ContentStorage';
 import APIService from '../services/APIService';
 import CommentSection from './CommentSection';
+import { bloggerManager } from '../data/virtualBloggers';
+import { useVirtualBloggers } from '../hooks/useVirtualBloggers';
 
 const UserBlogArticle = () => {
   const { userId, postId } = useParams();
@@ -17,7 +19,11 @@ const UserBlogArticle = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [isVirtualBlogger, setIsVirtualBlogger] = useState(false);
+  const [bloggerData, setBloggerData] = useState(null);
+  
   const apiService = APIService.getInstance();
+  const { isInitialized } = useVirtualBloggers();
 
   // 生成完整文章内容
   const generateFullArticleContent = async (blogPost, user) => {
@@ -128,25 +134,89 @@ const UserBlogArticle = () => {
     const loadArticle = async () => {
       setLoading(true);
       try {
-        // 获取用户信息
-        const user = contentStorage.getUser(userId);
-        if (!user) {
+        console.log(`🔍 加载文章: 用户${userId}, 文章${postId}, 初始化状态: ${isInitialized}`);
+        
+        // 如果是虚拟博主ID但系统未初始化，等待初始化
+        if (userId.startsWith('blogger_') && !isInitialized) {
+          console.log(`⏳ 虚拟博主系统尚未初始化，等待初始化完成...`);
+          setLoading(true);
+          return; // 等待下次 isInitialized 变化时重新执行
+        }
+        
+        // 检查是否为虚拟博主
+        let user = null;
+        let blogPost = null;
+        let isVBlogger = false; // 使用本地变量
+        
+        if (userId.startsWith('blogger_') && isInitialized) {
+          // 虚拟博主处理
+          const blogger = bloggerManager.getAllBloggers().find(b => b.id === userId);
+          if (blogger) {
+            console.log(`🤖 发现虚拟博主: ${blogger.name}`);
+            isVBlogger = true;
+            setIsVirtualBlogger(true);
+            setBloggerData(blogger);
+            
+            // 从内容历史中找到对应的长文
+            const contentHistory = blogger.contentHistory || [];
+            const contentItem = contentHistory.find(content => 
+              content.longArticle && 
+              `${blogger.id}-blog-${content.createdAt}` === postId
+            );
+            
+            if (contentItem && contentItem.longArticle) {
+              console.log(`📖 找到虚拟博主长文: ${contentItem.longArticle.title}`);
+              blogPost = {
+                id: postId,
+                title: contentItem.longArticle.title,
+                content: contentItem.longArticle.content,
+                preview: contentItem.longArticle.content.substring(0, 200) + '...',
+                date: contentItem.createdAt,
+                category: contentItem.sectionInfo?.title || blogger.expertise,
+                tags: contentItem.longArticle.tags || [blogger.expertise]
+              };
+              
+              // 构造用户数据
+              user = {
+                name: blogger.name,
+                avatar: blogger.avatar,
+                expertise: blogger.expertise,
+                verified: blogger.verified || true
+              };
+            }
+          }
+        } else {
+          // 普通用户处理
+          user = contentStorage.getUser(userId);
+          if (user) {
+            blogPost = contentStorage.getUserBlogPost(userId, postId);
+          }
+        }
+
+        if (!user || !blogPost) {
+          console.log(`❌ 未找到用户或文章: 用户=${!!user}, 文章=${!!blogPost}`);
           navigate(`/user/${userId}`);
           return;
         }
+        
         setUserData(user);
         setIsFollowing(contentStorage.isFollowing(userId));
-
-        // 获取博客文章基本信息
-        const blogPost = contentStorage.getUserBlogPost(userId, postId);
         
-        if (!blogPost) {
-          navigate(`/user/${userId}`);
-          return;
+        // 对于虚拟博主，直接使用已有内容；对于普通用户，可能需要生成
+        let fullArticle;
+        if (isVBlogger && blogPost.content) {
+          console.log(`📖 使用虚拟博主现有内容: ${blogPost.title}`);
+          console.log(`📄 内容长度: ${blogPost.content.length} 字符`);
+          fullArticle = {
+            ...blogPost,
+            author: user.name,
+            date: new Date(blogPost.date).toLocaleDateString('zh-CN')
+          };
+        } else {
+          console.log(`🤖 需要生成新内容 (虚拟博主: ${isVBlogger}, 有内容: ${!!blogPost.content})`);
+          // 生成完整文章内容
+          fullArticle = await generateFullArticleContent(blogPost, user);
         }
-        
-        // 生成完整文章内容
-        const fullArticle = await generateFullArticleContent(blogPost, user);
         
         if (!fullArticle) {
           navigate(`/user/${userId}`);
@@ -165,7 +235,7 @@ const UserBlogArticle = () => {
     };
 
     loadArticle();
-  }, [userId, postId, navigate]);
+  }, [userId, postId, navigate, isInitialized]);
 
   const handleBack = () => {
     navigate(`/user/${userId}`);

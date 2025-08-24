@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>快速清除缓存</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 50px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        button { 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin: 10px;
+        }
+        button:hover { background: #2563eb; }
+        .log { 
+            background: #f3f4f6; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 虚拟博主系统 - 快速清除缓存</h1>
+        <p>点击下面的按钮清除浏览器缓存，然后刷新应用页面。</p>
+        
+        <button onclick="clearAllCache()">清除所有缓存</button>
+        <button onclick="clearBloggerCache()">只清除博主缓存</button>
+        <button onclick="showCacheInfo()">查看缓存信息</button>
+        
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearAllCache() {
+            log('🧹 开始清除所有缓存...');
+            
+            // 清除localStorage
+            const localKeys = Object.keys(localStorage);
+            log(`📋 发现 ${localKeys.length} 个localStorage项`);
+            
+            localKeys.forEach(key => {
+                localStorage.removeItem(key);
+                log(`✅ 已清除: ${key}`);
+            });
+            
+            // 清除sessionStorage
+            sessionStorage.clear();
+            log('✅ sessionStorage已清除');
+            
+            // 清除Service Worker缓存
+            if ('caches' in window) {
+                caches.keys().then(cacheNames => {
+                    return Promise.all(
+                        cacheNames.map(cacheName => {
+                            log(`🗑️ 清除缓存: ${cacheName}`);
+                            return caches.delete(cacheName);
+                        })
+                    );
+                }).then(() => {
+                    log('✅ Service Worker缓存已清除');
+                });
+            }
+            
+            log('🎉 缓存清除完成！请刷新应用页面。');
+        }
+
+        function clearBloggerCache() {
+            log('🤖 开始清除虚拟博主缓存...');
+            
+            const bloggerKeys = [
+                'virtualBloggers',
+                'virtualBloggerContent', 
+                'virtualBloggerPosts',
+                'bloggerSchedulerState',
+                'virtualBloggerSettings',
+                'virtualBloggerFeedPosts'
+            ];
+            
+            let clearedCount = 0;
+            bloggerKeys.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    clearedCount++;
+                    log(`✅ 已清除: ${key}`);
+                }
+            });
+            
+            log(`🎉 虚拟博主缓存清除完成！清除了 ${clearedCount} 个项目。`);
+            log('请刷新应用页面重新初始化虚拟博主系统。');
+        }
+
+        function showCacheInfo() {
+            log('📊 缓存使用情况:');
+            
+            const localKeys = Object.keys(localStorage);
+            log(`localStorage项目数: ${localKeys.length}`);
+            
+            let totalSize = 0;
+            localKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                const size = new Blob([value]).size;
+                totalSize += size;
+                const sizeKB = (size / 1024).toFixed(2);
+                log(`  ${key}: ${sizeKB} KB`);
+            });
+            
+            const totalKB = (totalSize / 1024).toFixed(2);
+            log(`📊 总大小: ${totalKB} KB`);
+        }
+
+        // 页面加载时显示初始信息
+        window.onload = function() {
+            log('🚀 虚拟博主系统缓存清理工具已准备就绪');
+            showCacheInfo();
+        }
+    </script>
+</body>
+</html>

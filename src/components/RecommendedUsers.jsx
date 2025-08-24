@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
 import { getRandomAvatar } from '../utils/avatarUtils';
+import { bloggerManager } from '../data/virtualBloggers';
+import { useVirtualBloggers } from '../hooks/useVirtualBloggers';
 
 const RecommendedUsers = ({ onClose }) => {
     const [recommendedUsers, setRecommendedUsers] = useState([]);
@@ -12,100 +14,102 @@ const RecommendedUsers = ({ onClose }) => {
     const [isFromCache, setIsFromCache] = useState(false);
     const navigate = useNavigate();
     const apiService = APIService.getInstance();
+    const { isInitialized } = useVirtualBloggers();
 
     useEffect(() => {
         loadRecommendations();
-    }, []);
+    }, [isInitialized]);
 
     const loadRecommendations = async () => {
         setIsLoading(true);
         try {
-            // 首先尝试从缓存加载
-            const cached = contentStorage.getCachedRecommendations();
-            
-            if (cached) {
-                // 使用缓存数据
-                setRecommendedUsers(cached.users);
-                setUserPreferences(cached.userPreferences);
-                setIsFromCache(true);
+            if (!isInitialized) {
+                console.log('⏳ 虚拟博主系统尚未初始化，等待...');
                 setIsLoading(false);
                 return;
             }
+
+            // 获取所有虚拟博主
+            const allBloggers = bloggerManager.getAllBloggers();
+            const following = contentStorage.getFollowing();
             
-            // 缓存无效或不存在，生成新推荐
-            await generateRecommendations();
+            // 过滤掉已关注的博主，随机选择4个推荐
+            const unFollowedBloggers = allBloggers.filter(blogger => 
+                !following.includes(blogger.id)
+            );
+            
+            const shuffled = [...unFollowedBloggers].sort(() => 0.5 - Math.random());
+            const selectedBloggers = shuffled.slice(0, 4);
+            
+            // 转换为推荐用户格式
+            const recommendedUsersList = selectedBloggers.map(blogger => ({
+                id: blogger.id,
+                name: blogger.name,
+                avatar: blogger.avatar,
+                expertise: blogger.expertise,
+                verified: blogger.verified || true,
+                bio: typeof blogger.script?.personality === 'string' 
+                    ? blogger.script.personality.substring(0, 100) + '...'
+                    : '虚拟博主，正在分享学习心得',
+                followers: Math.floor(Math.random() * 5000) + 1000,
+                following: Math.floor(Math.random() * 100) + 50,
+                postsCount: blogger.contentHistory?.length || 0,
+                joinDate: blogger.createdAt ? new Date(blogger.createdAt).toLocaleDateString('zh-CN') : '最近',
+                progress: blogger.currentProgress || '1.1',
+                isVirtualBlogger: true
+            }));
+            
+            setRecommendedUsers(recommendedUsersList);
+            console.log(`📝 推荐了 ${recommendedUsersList.length} 个虚拟博主`);
+            
         } catch (error) {
             console.error('加载推荐失败:', error);
-            setIsLoading(false);
-        }
-    };
-
-    const generateRecommendations = async (forceRefresh = false) => {
-        if (forceRefresh) {
-            console.log('🔄 强制刷新推荐');
-            contentStorage.refreshRecommendations();
-        }
-        
-        setIsLoading(true);
-        try {
-            const recommendationData = contentStorage.generateRecommendationPrompt();
-            setUserPreferences(recommendationData.userPreferences);
-            
-            console.log('📊 用户偏好分析:', recommendationData);
-            
-            const result = await apiService.generateRecommendedUsers(recommendationData, 4);
-            
-            if (result && result.users) {
-                const users = result.users.map(user => ({
-                    ...user,
-                    id: contentStorage.generateUserIdFromName(user.name),
-                    avatar: getRandomAvatar(), // 为每个推荐用户分配随机头像
-                    followers: Math.floor(Math.random() * 50000) + 1000,
-                    following: Math.floor(Math.random() * 1000) + 50,
-                    postsCount: Math.floor(Math.random() * 500) + 10,
-                    joinDate: '2024年' + (Math.floor(Math.random() * 12) + 1) + '月',
-                    location: ['北京', '上海', '杭州', '深圳', '成都', '广州'][Math.floor(Math.random() * 6)]
-                }));
-                
-                setRecommendedUsers(users);
-                setIsFromCache(false);
-                
-                // 保存到缓存
-                contentStorage.saveRecommendations(users, recommendationData.userPreferences);
-            }
-        } catch (error) {
-            console.error('❌ 生成推荐失败:', error);
         }
         setIsLoading(false);
     };
 
-    const handleFollow = (user) => {
-        // 先添加用户到数据库
-        contentStorage.addUserFromPost({
-            expertName: user.name,
-            expertAvatar: user.avatar,
-            expertise: user.expertise,
-            verified: user.verified
-        });
-        
-        // 关注用户
-        contentStorage.followUser(user.id);
-        
-        // 从推荐列表中移除
-        setRecommendedUsers(prev => prev.filter(u => u.id !== user.id));
+    const refreshRecommendations = async () => {
+        console.log('🔄 刷新虚拟博主推荐');
+        await loadRecommendations();
     };
 
-    const handleUserClick = (user) => {
-        // 确保用户存在于数据库中
-        if (!contentStorage.getUser(user.id)) {
+    const handleFollow = (user) => {
+        if (user.isVirtualBlogger) {
+            // 对于虚拟博主，直接关注，不需要添加到contentStorage
+            console.log(`👤 关注虚拟博主: ${user.name} (${user.id})`);
+            contentStorage.followUser(user.id);
+        } else {
+            // 对于其他用户，保持原有逻辑
             contentStorage.addUserFromPost({
                 expertName: user.name,
                 expertAvatar: user.avatar,
                 expertise: user.expertise,
                 verified: user.verified
             });
+            contentStorage.followUser(user.id);
         }
-        navigate(`/user/${user.id}`);
+        
+        // 从推荐列表中移除
+        setRecommendedUsers(prev => prev.filter(u => u.id !== user.id));
+    };
+
+    const handleUserClick = (user) => {
+        if (user.isVirtualBlogger) {
+            // 虚拟博主直接跳转
+            console.log(`🎯 点击虚拟博主: ${user.name} (${user.id})`);
+            navigate(`/user/${user.id}`);
+        } else {
+            // 其他用户保持原有逻辑
+            if (!contentStorage.getUser(user.id)) {
+                contentStorage.addUserFromPost({
+                    expertName: user.name,
+                    expertAvatar: user.avatar,
+                    expertise: user.expertise,
+                    verified: user.verified
+                });
+            }
+            navigate(`/user/${user.id}`);
+        }
     };
 
     if (!recommendedUsers.length && !isLoading) {
@@ -124,7 +128,7 @@ const RecommendedUsers = ({ onClose }) => {
                 </div>
                 <div className="flex items-center space-x-2">
                     <button
-                        onClick={() => generateRecommendations(true)}
+                        onClick={() => refreshRecommendations()}
                         disabled={isLoading}
                         className="p-2 text-gray-400 hover:text-purple-600 disabled:opacity-50 rounded-lg hover:bg-purple-50 transition-all duration-200"
                         title="刷新推荐"

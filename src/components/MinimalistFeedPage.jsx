@@ -6,6 +6,8 @@ import contentStorage from '../services/ContentStorage';
 import RecommendedUsers from './RecommendedUsers';
 import CheerLeaderboard from './CheerLeaderboard';
 import { getRandomAvatar } from '../utils/avatarUtils';
+import { dynamicFeedPostsManager } from '../data/dynamicFeedPosts';
+import { useVirtualBloggers } from '../hooks/useVirtualBloggers';
 
 const MinimalistFeedPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -19,85 +21,140 @@ const MinimalistFeedPage = () => {
     const navigate = useNavigate();
     const apiService = APIService.getInstance();
     const scrollRef = useRef(null);
+    
+    // 使用虚拟博主系统hook
+    const { isInitialized, isLoading: systemLoading } = useVirtualBloggers();
 
-    const getInitialPosts = () => {
+    const getInitialPosts = () => {        
+        // 系统已初始化，优先使用动态Feed系统中的推文
+        const dynamicPosts = dynamicFeedPostsManager.getAllPosts({ limit: 10 });
+        console.log(`📱 动态Feed系统返回了 ${dynamicPosts.length} 条推文`);
+        
+        if (dynamicPosts.length > 0) {
+            return dynamicPosts.map(post => ({
+                ...post,
+                expertAvatar: post.expertAvatar || getRandomAvatar(),
+                likes: post.likes || Math.floor(Math.random() * 500) + 50,
+                comments: post.comments || Math.floor(Math.random() * 100) + 5,
+                shares: post.shares || Math.floor(Math.random() * 50) + 2,
+                bookmarks: post.bookmarks || Math.floor(Math.random() * 200) + 10
+            }));
+        }
+        
+        // 兜底使用保存的推文
         const savedPosts = contentStorage.getPosts(10);
         if (savedPosts.length > 0) {
+            console.log(`📦 使用保存的推文: ${savedPosts.length} 条`);
             return savedPosts;
         }
         
-        return [
-            {
-                id: 'static-1',
-                expertName: '调香师小雅',
-                expertAvatar: getRandomAvatar(),
-                expertise: '调香师',
-                verified: true,
-                content: '今天有位老奶奶想要"初恋的味道"。我调了橙花、白茶和一点麝香，她闻了之后眼眶红了，说就是60年前那个夏天的味道。这就是调香师最幸福的时刻。',
-                image: '💐',
-                likes: 856,
-                comments: 123,
-                shares: 67,
-                bookmarks: 234,
-                timestamp: '1小时前',
-                topic: '职业故事',
-                type: 'experience'
-            },
-            {
-                id: 'static-2',
-                expertName: '退休教师李奶奶',
-                expertAvatar: '👵',
-                expertise: '生活达人',
-                verified: false,
-                content: '孙子的乐高掉沙发缝里了，用化学课教的"热胀冷缩"原理，冰块敷在沙发腿上，缝隙变大了一点点，终于把乐高钩出来了！70岁还能用上30年前的知识，开心！',
-                image: '🧊',
-                likes: 1234,
-                comments: 89,
-                shares: 156,
-                bookmarks: 445,
-                timestamp: '3小时前',
-                topic: '生活智慧',
-                type: 'achievement'
-            }
-        ];
+        // 最后返回空数组，等待虚拟博主系统生成内容
+        console.log('📝 等待虚拟博主系统生成内容');
+        return [];
     };
 
     const loadAIContent = async (append = false) => {
         try {
             setError(null);
-            const topics = [
-                '物理', '化学', '生物', '历史', '地理', '数学', '计算机', 
-                '心理学', '经济学', '艺术', '音乐', '手工艺', '烹饪', 
-                '园艺', '摄影', '天文', '考古', '语言学', '哲学',
-                '职业故事', '生活技巧', '传统工艺', '小众知识'
-            ];
-            const randomTopics = topics.sort(() => 0.5 - Math.random()).slice(0, 5);
             
-            const result = await apiService.generateKnowledgeFeed(randomTopics, 5);
+            let newPosts = [];
             
-            if (result && result.posts) {
-                const newPosts = result.posts.map(post => ({
-                    ...post,
-                    id: `ai-${Date.now()}-${Math.random()}`,
-                    expertAvatar: getRandomAvatar(), // 为AI生成的帖子分配随机头像
-                    likes: Math.floor(Math.random() * 500) + 50,
-                    comments: Math.floor(Math.random() * 100) + 5,
-                    shares: Math.floor(Math.random() * 50) + 2,
-                    bookmarks: Math.floor(Math.random() * 200) + 10
-                }));
-
-                newPosts.forEach(post => {
-                    contentStorage.addUserFromPost(post);
-                });
-
-                contentStorage.savePosts(newPosts, append);
+            // 如果虚拟博主系统已初始化，优先从博主系统获取推文
+            if (isInitialized) {
+                console.log('🤖 虚拟博主系统已初始化，尝试获取博主推文...');
+                const bloggerPosts = await dynamicFeedPostsManager.updatePostsFromBloggers();
                 
-                if (append) {
-                    setPosts(prev => [...prev, ...newPosts]);
+                if (bloggerPosts.length > 0) {
+                    // 使用博主生成的推文
+                    newPosts = bloggerPosts.map(post => ({
+                        ...post,
+                        expertAvatar: post.expertAvatar || getRandomAvatar(),
+                        likes: post.likes || Math.floor(Math.random() * 500) + 50,
+                        comments: post.comments || Math.floor(Math.random() * 100) + 5,
+                        shares: post.shares || Math.floor(Math.random() * 50) + 2,
+                        bookmarks: post.bookmarks || Math.floor(Math.random() * 200) + 10
+                    }));
+                    
+                    console.log(`🎯 成功获取 ${newPosts.length} 条博主推文`);
                 } else {
-                    setPosts(prev => [...newPosts, ...prev]);
+                    console.log('📝 暂无新的博主推文，使用传统AI生成');
+                }
+            } else {
+                console.log('⏳ 虚拟博主系统尚未初始化，跳过博主推文获取');
+            }
+            
+            // 如果没有博主推文，但系统已初始化，尝试手动触发博主更新
+            if (newPosts.length === 0 && isInitialized) {
+                console.log('🎯 尝试手动触发博主更新以生成新推文...');
+                try {
+                    // 获取活跃博主并手动触发更新
+                    const { bloggerScheduler } = await import('../services/BloggerScheduler');
+                    await bloggerScheduler.scheduleAll();
+                    
+                    // 再次尝试获取博主推文
+                    const retriedBloggerPosts = await dynamicFeedPostsManager.updatePostsFromBloggers();
+                    if (retriedBloggerPosts.length > 0) {
+                        newPosts = retriedBloggerPosts.map(post => ({
+                            ...post,
+                            expertAvatar: post.expertAvatar || getRandomAvatar(),
+                            likes: post.likes || Math.floor(Math.random() * 500) + 50,
+                            comments: post.comments || Math.floor(Math.random() * 100) + 5,
+                            shares: post.shares || Math.floor(Math.random() * 50) + 2,
+                            bookmarks: post.bookmarks || Math.floor(Math.random() * 200) + 10
+                        }));
+                        console.log(`🎯 手动触发后获得 ${newPosts.length} 条博主推文`);
+                    }
+                } catch (triggerError) {
+                    console.warn('手动触发博主更新失败:', triggerError);
                 }
             }
+            
+            // 如果仍然没有推文（系统未初始化或博主暂无新内容），使用传统AI生成逻辑
+            if (newPosts.length === 0) {
+                console.log('🤖 使用传统AI生成推文...');
+                const topics = [
+                    '物理', '化学', '生物', '历史', '地理', '数学', '计算机', 
+                    '心理学', '经济学', '艺术', '音乐', '手工艺', '烹饪', 
+                    '园艺', '摄影', '天文', '考古', '语言学', '哲学',
+                    '职业故事', '生活技巧', '传统工艺', '小众知识'
+                ];
+                const randomTopics = topics.sort(() => 0.5 - Math.random()).slice(0, 5);
+                
+                const result = await apiService.generateKnowledgeFeed(randomTopics, isInitialized ? 2 : 5);
+                
+                if (result && result.posts) {
+                    newPosts = result.posts.map(post => ({
+                        ...post,
+                        id: `ai-${Date.now()}-${Math.random()}`,
+                        expertAvatar: getRandomAvatar(),
+                        likes: Math.floor(Math.random() * 500) + 50,
+                        comments: Math.floor(Math.random() * 100) + 5,
+                        shares: Math.floor(Math.random() * 50) + 2,
+                        bookmarks: Math.floor(Math.random() * 200) + 10,
+                        isGenerated: true,
+                        generationType: 'traditional'
+                    }));
+                    
+                    console.log(`🎲 生成了 ${newPosts.length} 条传统AI推文`);
+                }
+            }
+
+            // 保存推文（对于虚拟博主推文，不需要创建额外用户）
+            newPosts.forEach(post => {
+                if (!post.bloggerId) {
+                    // 只为非虚拟博主推文创建用户
+                    contentStorage.addUserFromPost(post);
+                }
+            });
+            contentStorage.savePosts(newPosts, append);
+            
+            // 更新界面
+            if (append) {
+                setPosts(prev => [...prev, ...newPosts]);
+            } else {
+                setPosts(prev => [...newPosts, ...prev]);
+            }
+            
         } catch (error) {
             console.error('生成内容失败:', error);
             setError('加载内容失败，请稍后重试');
@@ -110,7 +167,9 @@ const MinimalistFeedPage = () => {
             const initialPosts = getInitialPosts();
             setPosts(initialPosts);
             
-            if (initialPosts.length < 5) {
+            // 只有在虚拟博主系统初始化完成且推文不足时才加载新内容
+            if (initialPosts.length < 5 || !isInitialized) {
+                console.log(`📊 当前推文数量: ${initialPosts.length}, 系统初始化状态: ${isInitialized}`);
                 await loadAIContent(true);
             }
             
@@ -119,8 +178,12 @@ const MinimalistFeedPage = () => {
             
             setIsLoading(false);
         };
-        initLoad();
-    }, []);
+        
+        // 只有在不是系统加载中时才执行初始化
+        if (!systemLoading) {
+            initLoad();
+        }
+    }, [isInitialized, systemLoading]); // 依赖虚拟博主系统的初始化状态
 
     const handleScroll = useCallback(() => {
         if (!scrollRef.current) return;
@@ -208,10 +271,19 @@ const MinimalistFeedPage = () => {
         };
 
         const handleUserClick = () => {
+            // 如果是虚拟博主的推文，直接路由到虚拟博主页面
+            if (post.bloggerId) {
+                console.log(`🎯 点击虚拟博主推文，路由到博主页面: ${post.bloggerId}`);
+                navigate(`/user/${post.bloggerId}`);
+                return;
+            }
+            
+            // 否则按照原来的逻辑处理非虚拟博主
             const userId = contentStorage.generateUserIdFromName(post.expertName);
             
             const user = contentStorage.getUser(userId);
             if (!user) {
+                console.log(`📝 创建非虚拟博主用户: ${post.expertName}`);
                 contentStorage.addUserFromPost(post);
             }
             
@@ -241,8 +313,20 @@ const MinimalistFeedPage = () => {
                                 <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
                                     {post.expertName}
                                 </h3>
+                                {post.isGenerated && (
+                                    <span className="px-1 py-0.5 text-xs bg-green-100 text-green-600 rounded">
+                                        {post.bloggerId ? 'Virtual' : 'AI'}
+                                    </span>
+                                )}
                             </div>
-                            <p className="text-sm text-gray-500 mt-0.5">{post.expertise}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                                {post.expertise}
+                                {post.bloggerProgress && (
+                                    <span className="ml-2 text-xs text-blue-500">
+                                        Progress: {post.bloggerProgress}
+                                    </span>
+                                )}
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center space-x-2 text-xs text-gray-400">
@@ -379,6 +463,27 @@ const MinimalistFeedPage = () => {
                 {error && (
                     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
                         {error}
+                    </div>
+                )}
+
+                {/* 虚拟博主系统状态提示 */}
+                {!systemLoading && isInitialized && (
+                    <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6">
+                        <div className="flex items-center gap-2">
+                            <span className="text-green-500">🤖</span>
+                            <span className="font-medium">虚拟博主系统已启动</span>
+                        </div>
+                        <p className="text-sm mt-1">推文将优先展示虚拟博主的学习心得和分享</p>
+                    </div>
+                )}
+
+                {systemLoading && (
+                    <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl mb-6">
+                        <div className="flex items-center gap-2">
+                            <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                            <span className="font-medium">正在初始化虚拟博主系统...</span>
+                        </div>
+                        <p className="text-sm mt-1">请稍候，系统正在创建虚拟博主并准备内容</p>
                     </div>
                 )}
 

@@ -24,7 +24,7 @@ class ContentStorage {
             localStorage.setItem(this.USER_POSTS_KEY, JSON.stringify({}));
         }
         if (!localStorage.getItem(this.USERS_KEY)) {
-            localStorage.setItem(this.USERS_KEY, JSON.stringify(this.getDefaultUsers()));
+            localStorage.setItem(this.USERS_KEY, JSON.stringify({}));
         }
         if (!localStorage.getItem(this.FOLLOWING_KEY)) {
             localStorage.setItem(this.FOLLOWING_KEY, JSON.stringify([]));
@@ -47,81 +47,6 @@ class ContentStorage {
         
         // 修复损坏的用户数据
         this.fixBrokenUserData();
-    }
-
-    getDefaultUsers() {
-        // 为默认用户也使用一致的ID生成逻辑
-        const users = {};
-        const defaultUserData = [
-            {
-                name: '调香师小雅',
-                avatar: getRandomAvatar(),
-                expertise: '调香师',
-                verified: true,
-                bio: '独立调香师｜芳疗师认证｜用香味记录生活的美好瞬间。相信每个人都有属于自己的味道，帮助过500+客人找到专属香氛。',
-                location: '杭州',
-                joinDate: '2020年3月',
-                website: 'xiaoyuperfume.com',
-                followers: 12842,
-                following: 328,
-                postsCount: 156,
-                tags: ['调香', '芳疗', '香水', '精油', '手作'],
-                achievements: [
-                    '🏆 2023年度创意调香师',
-                    '📚 《寻香记》专栏作者',
-                    '🎓 IFA国际芳疗师认证'
-                ]
-            },
-            {
-                name: '古籍修复师老陈',
-                avatar: getRandomAvatar(),
-                expertise: '古籍修复师',
-                verified: true,
-                bio: '国家图书馆古籍修复中心｜30年修书匠人｜让时光倒流，让智慧传承。修复过宋元明清古籍2000余册。',
-                location: '北京',
-                joinDate: '2019年8月',
-                website: null,
-                followers: 8956,
-                following: 156,
-                postsCount: 89,
-                tags: ['古籍修复', '传统工艺', '文物保护', '手工艺'],
-                achievements: [
-                    '🏆 国家级非遗传承人',
-                    '📚 《古籍修复技艺》作者',
-                    '🎓 故宫博物院特聘专家'
-                ]
-            },
-            {
-                name: '退休教师李奶奶',
-                avatar: getRandomAvatar(),
-                expertise: '生活达人',
-                verified: false,
-                bio: '退休中学化学老师｜三个孙子的奶奶｜用知识让生活更有趣。分享我的生活小智慧，希望能帮到大家。',
-                location: '上海',
-                joinDate: '2021年6月',
-                website: null,
-                followers: 23567,
-                following: 89,
-                postsCount: 234,
-                tags: ['生活技巧', '科学小实验', '育儿', '化学'],
-                achievements: [
-                    '🌟 月度最受欢迎分享者',
-                    '❤️ 温暖社区贡献者',
-                    '📚 生活智慧达人'
-                ]
-            }
-        ];
-        
-        // 使用统一的ID生成逻辑
-        defaultUserData.forEach(userData => {
-            const id = this.generateUserIdFromName(userData.name);
-            users[id] = {
-                id,
-                ...userData
-            };
-        });
-        
-        return users;
     }
 
     // 保存主页推文
@@ -610,10 +535,9 @@ class ContentStorage {
         console.log('🗑️ 所有数据已清除并重新初始化');
     }
     
-    // 清除AI生成的数据，保留默认用户
+    // 清除AI生成的数据
     clearGeneratedData() {
-        const defaultUsers = this.getDefaultUsers();
-        localStorage.setItem(this.USERS_KEY, JSON.stringify(defaultUsers));
+        localStorage.setItem(this.USERS_KEY, JSON.stringify({}));
         localStorage.removeItem(this.POSTS_KEY);
         localStorage.removeItem(this.USER_POSTS_KEY);
         localStorage.removeItem(this.USER_BLOG_POSTS_KEY);
@@ -625,7 +549,7 @@ class ContentStorage {
         localStorage.setItem(this.USER_BLOG_POSTS_KEY, JSON.stringify({}));
         localStorage.setItem(this.RECOMMENDATIONS_KEY, JSON.stringify({}));
         
-        console.log('🧹 AI生成的数据已清除，默认用户已保留');
+        console.log('🧹 AI生成的数据已清除');
     }
 
     // 更新所有现有用户和帖子的头像为随机头像

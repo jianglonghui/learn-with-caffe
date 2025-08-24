@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧹 虚拟博主数据清理工具</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+            margin: 50px; 
+            background: #f8fafc;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 12px; 
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button { 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin: 10px 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #2563eb; }
+        .danger { background: #ef4444; }
+        .danger:hover { background: #dc2626; }
+        .success { background: #10b981; }
+        .success:hover { background: #059669; }
+        .warning { background: #f59e0b; }
+        .warning:hover { background: #d97706; }
+        
+        .log { 
+            background: #f3f4f6; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', 'PingFang SC', monospace;
+            font-size: 13px;
+        }
+        .info { color: #2563eb; }
+        .success-text { color: #059669; }
+        .error { color: #dc2626; }
+        .warning-text { color: #d97706; }
+        
+        .blogger-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .blogger-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+        }
+        .blogger-card h4 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+        }
+        .blogger-info {
+            font-size: 12px;
+            color: #6b7280;
+            margin: 5px 0;
+        }
+        
+        .section {
+            margin: 30px 0;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 20px;
+        }
+        .section h2 {
+            color: #1f2937;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 虚拟博主数据清理工具</h1>
+        <p>管理和清理虚拟博主系统的数据，包括博主信息、生成内容、缓存数据等。</p>
+        
+        <div class="section">
+            <h2>📊 系统状态检查</h2>
+            <button onclick="checkSystemStatus()">检查系统状态</button>
+            <button onclick="exportAllData()">导出所有数据</button>
+        </div>
+
+        <div class="section">
+            <h2>👥 博主管理</h2>
+            <button onclick="listAllBloggers()">列出所有博主</button>
+            <button onclick="resetBloggerProgress()" class="warning">重置博主学习进度</button>
+            <button onclick="deleteInactiveBloggers()" class="danger">删除非活跃博主</button>
+        </div>
+
+        <div class="section">
+            <h2>📝 内容清理</h2>
+            <button onclick="clearBloggerContent()" class="warning">清除博主生成内容</button>
+            <button onclick="clearFeedPosts()" class="warning">清除Feed推文</button>
+            <button onclick="clearBlogPosts()" class="warning">清除博客文章</button>
+        </div>
+
+        <div class="section">
+            <h2>🗑️ 危险操作</h2>
+            <button onclick="resetAllBloggers()" class="danger">重置所有博主数据</button>
+            <button onclick="clearAllVirtualBloggerData()" class="danger">清除整个虚拟博主系统</button>
+            <button onclick="factoryReset()" class="danger">恢复出厂设置</button>
+        </div>
+
+        <div id="bloggerList" class="blogger-list"></div>
+        <div id="log" class="log"></div>
+        
+        <div style="margin-top: 30px; text-align: center;">
+            <button onclick="clearLog()">清除日志</button>
+            <button onclick="refreshPage()" class="success">刷新页面</button>
+        </div>
+    </div>
+
+    <script type="module">
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = {
+                'error': 'error',
+                'success': 'success-text',
+                'warning': 'warning-text',
+                'info': 'info'
+            }[type] || 'info';
+            
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        window.clearLog = () => {
+            document.getElementById('log').innerHTML = '';
+        };
+
+        window.refreshPage = () => {
+            window.location.reload();
+        };
+
+        window.checkSystemStatus = async () => {
+            log('🔍 检查虚拟博主系统状态...', 'info');
+            
+            try {
+                const { bloggerManager } = await import('./src/data/virtualBloggers.js');
+                const { bloggerScheduler } = await import('./src/services/BloggerScheduler.js');
+                const { dynamicFeedPostsManager } = await import('./src/data/dynamicFeedPosts.js');
+                const { dynamicBlogPostsManager } = await import('./src/data/dynamicBlogPosts.js');
+
+                const allBloggers = bloggerManager.getAllBloggers();
+                const schedulerStats = bloggerScheduler.getSchedulingStats();
+                const feedStats = dynamicFeedPostsManager.getStats();
+                const blogStats = dynamicBlogPostsManager.getStats();
+
+                log(`📊 系统状态概览:`, 'info');
+                log(`   博主总数: ${allBloggers.length}`, 'info');
+                log(`   活跃博主: ${schedulerStats.active}`, 'info');
+                log(`   等待更新: ${schedulerStats.pendingUpdate}`, 'info');
+                log(`   Feed推文: ${feedStats.totalPosts} (${feedStats.staticPosts} 静态 + ${feedStats.dynamicPosts} 动态)`, 'info');
+                log(`   博客文章: ${blogStats.totalPosts}`, 'info');
+                log(`   自动调度: ${schedulerStats.autoSchedulingEnabled ? '启用' : '禁用'}`, 'info');
+
+                // 显示存储使用情况
+                const storage = localStorage.getItem('virtualBloggers');
+                if (storage) {
+                    const sizeKB = (new Blob([storage]).size / 1024).toFixed(2);
+                    log(`💾 存储使用: ${sizeKB} KB`, 'info');
+                } else {
+                    log('💾 暂无博主数据存储', 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ 检查系统状态失败: ${error.message}`, 'error');
+                console.error('详细错误:', error);
+            }
+        };
+
+        window.listAllBloggers = async () => {
+            log('👥 列出所有虚拟博主...', 'info');
+            
+            try {
+                const { bloggerManager } = await import('./src/data/virtualBloggers.js');
+                const bloggers = bloggerManager.getAllBloggers();
+                
+                if (bloggers.length === 0) {
+                    log('📝 暂无虚拟博主数据', 'warning');
+                    return;
+                }
+
+                log(`找到 ${bloggers.length} 个虚拟博主:`, 'info');
+                
+                let bloggerListHTML = '<h3>🤖 虚拟博主列表</h3>';
+                
+                bloggers.forEach((blogger, index) => {
+                    const lastUpdate = new Date(blogger.lastUpdateTime);
+                    const contentCount = blogger.contentHistory?.length || 0;
+                    const isActive = blogger.isActive ? '✅ 活跃' : '⏸️ 停用';
+                    
+                    log(`   ${index + 1}. ${blogger.name} (${blogger.expertise})`, 'info');
+                    log(`      ID: ${blogger.id}`, 'info');
+                    log(`      进度: ${blogger.currentProgress}`, 'info');
+                    log(`      状态: ${isActive}`, blogger.isActive ? 'success' : 'warning');
+                    log(`      内容数: ${contentCount} 条`, 'info');
+                    log(`      更新时间: ${lastUpdate.toLocaleString()}`, 'info');
+                    log(`      ────────────────────`, 'info');
+
+                    bloggerListHTML += `
+                        <div class="blogger-card">
+                            <h4>${blogger.name} (${blogger.expertise})</h4>
+                            <div class="blogger-info">ID: ${blogger.id}</div>
+                            <div class="blogger-info">进度: ${blogger.currentProgress}</div>
+                            <div class="blogger-info">状态: ${isActive}</div>
+                            <div class="blogger-info">内容: ${contentCount} 条</div>
+                            <div class="blogger-info">更新: ${lastUpdate.toLocaleString()}</div>
+                            <button onclick="deleteBlogger('${blogger.id}')" class="danger" style="margin-top: 10px; padding: 6px 12px; font-size: 12px;">删除此博主</button>
+                        </div>
+                    `;
+                });
+
+                document.getElementById('bloggerList').innerHTML = bloggerListHTML;
+
+            } catch (error) {
+                log(`❌ 列出博主失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.deleteBlogger = async (bloggerId) => {
+            if (!confirm(`确定要删除博主 ${bloggerId} 吗？此操作不可恢复！`)) {
+                return;
+            }
+            
+            try {
+                const { bloggerManager } = await import('./src/data/virtualBloggers.js');
+                const deleted = bloggerManager.deleteBlogger(bloggerId);
+                
+                if (deleted) {
+                    log(`✅ 成功删除博主: ${bloggerId}`, 'success');
+                    bloggerManager.saveToStorage();
+                    // 刷新博主列表
+                    setTimeout(() => window.listAllBloggers(), 500);
+                } else {
+                    log(`❌ 删除博主失败，博主不存在: ${bloggerId}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ 删除博主失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.clearBloggerContent = async () => {
+            if (!confirm('确定要清除所有博主的生成内容吗？这将删除所有推文和文章，但保留博主信息。')) {
+                return;
+            }
+            
+            try {
+                const { bloggerManager } = await import('./src/data/virtualBloggers.js');
+                const bloggers = bloggerManager.getAllBloggers();
+                
+                bloggers.forEach(blogger => {
+                    blogger.contentHistory = [];
+                    blogger.lastUpdateTime = new Date().toISOString();
+                });
+                
+                bloggerManager.saveToStorage();
+                log(`✅ 已清除 ${bloggers.length} 个博主的生成内容`, 'success');
+                
+            } catch (error) {
+                log(`❌ 清除博主内容失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.resetBloggerProgress = async () => {
+            if (!confirm('确定要重置所有博主的学习进度吗？所有博主将回到1.1起点。')) {
+                return;
+            }
+            
+            try {
+                const { bloggerManager } = await import('./src/data/virtualBloggers.js');
+                const bloggers = bloggerManager.getAllBloggers();
+                
+                bloggers.forEach(blogger => {
+                    blogger.currentProgress = '1.1';
+                    blogger.isActive = true;
+                    blogger.lastUpdateTime = new Date().toISOString();
+                });
+                
+                bloggerManager.saveToStorage();
+                log(`✅ 已重置 ${bloggers.length} 个博主的学习进度`, 'success');
+                
+            } catch (error) {
+                log(`❌ 重置博主进度失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.clearAllVirtualBloggerData = () => {
+            if (!confirm('⚠️ 危险操作！这将完全删除虚拟博主系统的所有数据，包括：\n- 所有博主信息\n- 所有生成内容\n- 所有学习进度\n\n确定要继续吗？')) {
+                return;
+            }
+            
+            if (!confirm('最后确认：此操作不可恢复，确定要删除整个虚拟博主系统吗？')) {
+                return;
+            }
+            
+            try {
+                // 清除所有相关的localStorage项
+                const keysToRemove = [
+                    'virtualBloggers',
+                    'virtualBloggerContent', 
+                    'virtualBloggerPosts',
+                    'bloggerSchedulerState',
+                    'virtualBloggerSettings',
+                    'virtualBloggerFeedPosts',
+                    'dynamicBlogPosts',
+                    'dynamicFeedPosts'
+                ];
+                
+                let removedCount = 0;
+                keysToRemove.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        localStorage.removeItem(key);
+                        removedCount++;
+                        log(`🗑️ 已删除: ${key}`, 'warning');
+                    }
+                });
+                
+                log(`✅ 虚拟博主系统数据清除完成！删除了 ${removedCount} 个数据项`, 'success');
+                log('🔄 请刷新应用页面以重新初始化系统', 'info');
+                
+            } catch (error) {
+                log(`❌ 清除数据失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.factoryReset = () => {
+            if (!confirm('⚠️ 恢复出厂设置将删除所有应用数据，包括用户数据、博主数据、推文、文章等。确定要继续吗？')) {
+                return;
+            }
+            
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                log('🏭 出厂设置恢复完成！所有数据已清除', 'success');
+                log('🔄 3秒后自动刷新页面...', 'info');
+                
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+                
+            } catch (error) {
+                log(`❌ 恢复出厂设置失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.exportAllData = () => {
+            try {
+                const allData = {};
+                
+                // 导出所有localStorage数据
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    allData[key] = localStorage.getItem(key);
+                }
+                
+                const dataStr = JSON.stringify(allData, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(dataBlob);
+                link.download = `virtual-blogger-data-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                
+                log('📤 数据导出成功，文件已下载', 'success');
+                
+            } catch (error) {
+                log(`❌ 导出数据失败: ${error.message}`, 'error');
+            }
+        };
+
+        // 其他清理函数
+        window.clearFeedPosts = () => {
+            localStorage.removeItem('dynamicFeedPosts');
+            log('✅ Feed推文数据已清除', 'success');
+        };
+
+        window.clearBlogPosts = () => {
+            localStorage.removeItem('dynamicBlogPosts');
+            log('✅ 博客文章数据已清除', 'success');
+        };
+
+        window.deleteInactiveBloggers = async () => {
+            if (!confirm('确定要删除所有非活跃博主吗？')) {
+                return;
+            }
+            
+            try {
+                const { bloggerManager } = await import('./src/data/virtualBloggers.js');
+                const bloggers = bloggerManager.getAllBloggers();
+                const inactiveBloggers = bloggers.filter(b => !b.isActive);
+                
+                inactiveBloggers.forEach(blogger => {
+                    bloggerManager.deleteBlogger(blogger.id);
+                });
+                
+                bloggerManager.saveToStorage();
+                log(`✅ 已删除 ${inactiveBloggers.length} 个非活跃博主`, 'success');
+                
+            } catch (error) {
+                log(`❌ 删除非活跃博主失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.resetAllBloggers = async () => {
+            if (!confirm('确定要重置所有博主数据吗？这将恢复到默认的3个博主状态。')) {
+                return;
+            }
+            
+            try {
+                const { initializeDefaultBloggers } = await import('./src/data/virtualBloggers.js');
+                localStorage.removeItem('virtualBloggers');
+                await initializeDefaultBloggers();
+                log('✅ 博主数据已重置为默认状态', 'success');
+                
+            } catch (error) {
+                log(`❌ 重置博主数据失败: ${error.message}`, 'error');
+            }
+        };
+
+        // 页面加载时自动检查状态
+        window.addEventListener('load', () => {
+            log('🚀 虚拟博主清理工具已准备就绪', 'info');
+            setTimeout(() => {
+                checkSystemStatus();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

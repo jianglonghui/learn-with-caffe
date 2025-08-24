@@ -1,22 +1,25 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { blogPosts } from '../data/blogPosts';
+import { dynamicBlogPostsManager } from '../data/dynamicBlogPosts';
 import { Calendar, Clock, Tag, User, ChevronRight, Search, Filter } from 'lucide-react';
+import VirtualBloggerTrigger from './VirtualBloggerTrigger';
 
 const BlogHomePage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
   
-  const categories = ['全部', ...new Set(blogPosts.map(post => post.category))];
+  // 获取所有文章和分类（包括动态生成的）
+  const allPosts = dynamicBlogPostsManager.getAllPosts();
+  const categories = dynamicBlogPostsManager.getAllCategories();
   
-  const filteredPosts = blogPosts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          post.preview.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          post.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === '全部' || post.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // 使用搜索功能进行筛选
+  const filteredPosts = searchTerm 
+    ? dynamicBlogPostsManager.searchPosts(searchTerm, { limit: 50 })
+    : dynamicBlogPostsManager.getAllPosts({ 
+        category: selectedCategory, 
+        limit: 50 
+      });
 
   const handlePostClick = (postId) => {
     navigate(`/blog/${postId}`);
@@ -97,7 +100,15 @@ const BlogHomePage = () => {
                 <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
                   <div className="flex items-center gap-1">
                     <User className="w-4 h-4" />
-                    <span>{post.author}</span>
+                    <span className="flex items-center gap-1">
+                      {post.author}
+                      {post.authorVerified && (
+                        <span className="text-blue-500">✓</span>
+                      )}
+                      {post.isGenerated && (
+                        <span className="px-1 py-0.5 text-xs bg-green-100 text-green-600 rounded">AI</span>
+                      )}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
@@ -107,6 +118,11 @@ const BlogHomePage = () => {
                     <Clock className="w-4 h-4" />
                     <span>{post.readTime}</span>
                   </div>
+                  {post.authorExpertise && (
+                    <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      {post.authorExpertise}
+                    </div>
+                  )}
                 </div>
                 
                 {/* 标签 */}
@@ -141,6 +157,9 @@ const BlogHomePage = () => {
           </div>
         )}
       </div>
+
+      {/* 虚拟博主催更按钮 */}
+      <VirtualBloggerTrigger />
     </div>
   );
 };

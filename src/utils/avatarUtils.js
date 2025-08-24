@@ -52,21 +52,9 @@ export const getAvatarPath = (gender, filename) => {
   return `/avatar/${gender}/${filename}`;
 };
 
-// 预设的一些特殊用户头像映射
-export const getSpecialUserAvatar = (userId) => {
-  const specialMappings = {
-    'xiaoyu': getAvatarPath('girl', 'bear.png'),      // 调香师小雅
-    'laochen': getAvatarPath('boy', 'panda.png'),     // 古籍修复师老陈  
-    'linainai': getAvatarPath('girl', 'rabbit.png')   // 退休教师李奶奶
-  };
-  
-  return specialMappings[userId] || getRandomAvatar();
-};
-
 export default {
   getAllAvatars,
   getRandomAvatar,
   getRandomAvatarByGender,
   getAvatarPath,
-  getSpecialUserAvatar
 };

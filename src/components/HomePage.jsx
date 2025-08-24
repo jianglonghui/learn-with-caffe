@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, RefreshCw, Loader, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
 import RecommendedUsers from './RecommendedUsers';
 import CheerLeaderboard from './CheerLeaderboard';
 import { getRandomAvatar } from '../utils/avatarUtils';
+import { dynamicFeedPostsManager } from '../data/dynamicFeedPosts';
+import { useVirtualBloggers } from '../hooks/useVirtualBloggers';
+import { bloggerScheduler } from '../services/BloggerScheduler';
+import { bloggerManager } from '../data/virtualBloggers';
 
 const HomePage = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -20,117 +23,158 @@ const HomePage = () => {
     const [showRecommendations, setShowRecommendations] = useState(false);
     
     const navigate = useNavigate();
-    const apiService = APIService.getInstance();
     const containerRef = useRef(null);
     const scrollRef = useRef(null);
+    
+    // 使用虚拟博主系统
+    const { isInitialized, isLoading: systemLoading, error: systemError } = useVirtualBloggers();
 
-    // 获取初始数据
+    // 获取初始数据 - 完全依赖虚拟博主系统
     const getInitialPosts = () => {
-        const savedPosts = contentStorage.getPosts(10);
-        if (savedPosts.length > 0) {
-            return savedPosts;
+        // 优先从虚拟博主Feed系统获取动态推文
+        const dynamicPosts = dynamicFeedPostsManager.getAllPosts({ limit: 10, includeGenerated: true });
+        if (dynamicPosts.length > 0) {
+            console.log(`📱 从虚拟博主系统获取到 ${dynamicPosts.length} 条推文`);
+            return dynamicPosts;
         }
         
-        // 如果没有保存的数据，返回默认内容
+        // 如果没有动态推文且虚拟博主系统未初始化，返回提示
         return [
             {
-                id: 'static-1',
-                expertName: '调香师小雅',
+                id: 'system-init',
+                expertName: '系统助手',
                 expertAvatar: getRandomAvatar(),
-                expertise: '调香师',
+                expertise: '系统管理',
                 verified: true,
-                content: '今天有位老奶奶想要"初恋的味道"。我调了橙花、白茶和一点麝香，她闻了之后眼眶红了，说就是60年前那个夏天的味道。这就是调香师最幸福的时刻。',
-                image: '💐',
-                likes: 856,
-                comments: 123,
-                shares: 67,
-                bookmarks: 234,
-                timestamp: '1小时前',
-                topic: '职业故事',
-                type: 'experience'
-            },
-            {
-                id: 'static-2',
-                expertName: '退休教师李奶奶',
-                expertAvatar: getRandomAvatar(),
-                expertise: '生活达人',
-                verified: false,
-                content: '孙子的乐高掉沙发缝里了，用化学课教的"热胀冷缩"原理，冰块敷在沙发腿上，缝隙变大了一点点，终于把乐高钩出来了！70岁还能用上30年前的知识，开心！',
-                image: '🧊',
-                likes: 1234,
-                comments: 89,
-                shares: 156,
-                bookmarks: 445,
-                timestamp: '3小时前',
-                topic: '生活智慧',
-                type: 'achievement'
-            },
-            {
-                id: 'static-3',
-                expertName: '古籍修复师老陈',
-                expertAvatar: getRandomAvatar(),
-                expertise: '古籍修复师',
-                verified: true,
-                content: '今天修复一本明代医书，书页薄如蝉翼。用传统的"金镶玉"技法，把日本纸浆调成跟原纸一样的颜色，一点点补齐虫蛀的洞。6个小时修了3页，但想到后人还能读到这些智慧，值了。',
-                image: null,
-                likes: 567,
-                comments: 78,
-                shares: 234,
-                bookmarks: 890,
-                timestamp: '5小时前',
-                topic: '传统工艺',
-                type: 'experience'
+                content: '🚀 虚拟博主系统正在初始化中，即将为您呈现AI博主的精彩内容！请稍候片刻...',
+                image: '⚡',
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                bookmarks: 0,
+                timestamp: '刚刚',
+                topic: '系统提示',
+                type: 'system'
             }
         ];
     };
 
-    // 生成随机互动数据
-    const generateRandomStats = () => ({
-        likes: Math.floor(Math.random() * 500) + 50,
-        comments: Math.floor(Math.random() * 100) + 5,
-        shares: Math.floor(Math.random() * 50) + 2,
-        bookmarks: Math.floor(Math.random() * 200) + 10
-    });
 
-    // 加载AI生成的内容
-    const loadAIContent = async (append = false) => {
+    // Fresh Content: 100% AI生成全新博主 + 调度所有博主生成内容
+    const generateFreshContent = async () => {
+        if (!isInitialized) {
+            console.log('⏳ 虚拟博主系统尚未初始化');
+            return;
+        }
+        
         try {
             setError(null);
-            const topics = [
-                '物理', '化学', '生物', '历史', '地理', '数学', '计算机', 
-                '心理学', '经济学', '艺术', '音乐', '手工艺', '烹饪', 
-                '园艺', '摄影', '天文', '考古', '语言学', '哲学',
-                '职业故事', '生活技巧', '传统工艺', '小众知识'
-            ];
-            const randomTopics = topics.sort(() => 0.5 - Math.random()).slice(0, 5);
+            console.log('🎯 Fresh Content 启动：AI生成全新博主...');
             
-            const result = await apiService.generateKnowledgeFeed(randomTopics, 5);
-            
-            if (result && result.posts) {
-                const newPosts = result.posts.map(post => ({
-                    ...post,
-                    id: `ai-${Date.now()}-${Math.random()}`,
-                    expertAvatar: getRandomAvatar(), // 为AI生成的帖子分配随机头像
-                    ...generateRandomStats()
-                }));
-
-                // 为AI生成的用户添加到用户数据库
-                newPosts.forEach(post => {
-                    contentStorage.addUserFromPost(post);
-                });
-
-                // 保存到持久化存储
-                const savedPosts = contentStorage.savePosts(newPosts, append);
-                
-                if (append) {
-                    setPosts(prev => [...prev, ...newPosts]);
-                } else {
-                    setPosts(prev => [...newPosts, ...prev]);
-                }
+            // 1. 必定创建一个全新的AI生成博主
+            console.log('🤖 开始AI生成全新博主...');
+            let newBlogger = null;
+            try {
+                newBlogger = await bloggerManager.createAIGeneratedBlogger();
+                console.log(`🎉 AI成功创建新博主: ${newBlogger.name} (${newBlogger.expertise})`);
+            } catch (error) {
+                console.error('❌ AI生成博主失败:', error);
+                setError(`AI生成博主失败: ${error.message}`);
+                return; // 如果AI生成失败，直接返回
             }
+            
+            // 2. 强制调度所有活跃博主（包括新创建的博主）
+            console.log('📝 调度所有博主生成内容（包括新博主）...');
+            await bloggerScheduler.scheduleAll();
+            
+            // 获取新生成的推文
+            const newBloggerPosts = await dynamicFeedPostsManager.updatePostsFromBloggers();
+            
+            if (newBloggerPosts.length > 0) {
+                const newPosts = newBloggerPosts.map(post => ({
+                    ...post,
+                    expertAvatar: post.expertAvatar || getRandomAvatar(),
+                    likes: post.likes || Math.floor(Math.random() * 500) + 50,
+                    comments: post.comments || Math.floor(Math.random() * 100) + 5,
+                    shares: post.shares || Math.floor(Math.random() * 50) + 2,
+                    bookmarks: post.bookmarks || Math.floor(Math.random() * 200) + 10
+                }));
+                
+                // 保存推文（对于虚拟博主推文，不需要创建额外用户）
+                newPosts.forEach(post => {
+                    if (!post.bloggerId) {
+                        // 只为非虚拟博主推文创建用户
+                        contentStorage.addUserFromPost(post);
+                    }
+                });
+                contentStorage.savePosts(newPosts, false); // 不追加，替换现有内容
+                
+                // 替换现有推文
+                setPosts(newPosts);
+                console.log(`✨ Fresh Content 完成！新博主"${newBlogger?.name}"已加入，生成了 ${newPosts.length} 条新推文`);
+            } else {
+                console.log('📝 暂时没有生成新内容');
+            }
+            
         } catch (error) {
-            console.error('生成内容失败:', error);
-            setError('加载内容失败，请稍后重试');
+            console.error('生成新内容失败:', error);
+            setError('生成新内容失败，请稍后重试');
+        }
+    };
+
+    // 加载更多现有博主内容 (Load More) - 只加载现有内容，不生成新内容
+    const loadMoreContent = async () => {
+        if (!isInitialized || isLoadingMore) {
+            console.log(isLoadingMore ? '⏳ 正在加载更多内容...' : '⏳ 虚拟博主系统尚未初始化');
+            return;
+        }
+        
+        try {
+            setIsLoadingMore(true);
+            setError(null);
+            console.log('📚 加载更多博主内容...');
+            
+            // 从现有内容中获取更多推文，排除已显示的
+            const currentPostIds = posts.map(post => post.id);
+            const moreBloggerPosts = dynamicFeedPostsManager.getMorePosts(5, currentPostIds);
+            
+            if (moreBloggerPosts.length > 0) {
+                const newPosts = moreBloggerPosts.map(post => ({
+                    ...post,
+                    expertAvatar: post.expertAvatar || getRandomAvatar(),
+                    likes: post.likes || Math.floor(Math.random() * 500) + 50,
+                    comments: post.comments || Math.floor(Math.random() * 100) + 5,
+                    shares: post.shares || Math.floor(Math.random() * 50) + 2,
+                    bookmarks: post.bookmarks || Math.floor(Math.random() * 200) + 10
+                }));
+                
+                // 保存推文（对于虚拟博主推文，不需要创建额外用户）
+                newPosts.forEach(post => {
+                    if (!post.bloggerId) {
+                        // 只为非虚拟博主推文创建用户
+                        contentStorage.addUserFromPost(post);
+                    }
+                });
+                contentStorage.savePosts(newPosts, true); // 追加到现有内容
+                
+                // 追加到现有推文，确保不重复
+                setPosts(prev => {
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const uniqueNewPosts = newPosts.filter(post => !existingIds.has(post.id));
+                    console.log(`📝 添加了 ${uniqueNewPosts.length} 条新推文，过滤了 ${newPosts.length - uniqueNewPosts.length} 条重复`);
+                    return [...prev, ...uniqueNewPosts];
+                });
+                console.log(`📖 加载了 ${newPosts.length} 条更多推文`);
+            } else {
+                console.log('📝 没有更多现有内容可加载');
+                setError('没有更多内容了，请使用 Fresh Content 生成新内容');
+            }
+            
+        } catch (error) {
+            console.error('加载更多内容失败:', error);
+            setError('加载更多内容失败，请稍后重试');
+        } finally {
+            setIsLoadingMore(false);
         }
     };
 
@@ -146,9 +190,9 @@ const HomePage = () => {
             console.log('当前存储的用户:', Object.keys(userData.users));
             console.log('所有用户数据:', userData.users);
             
-            // 如果没有足够的内容，生成一些
-            if (initialPosts.length < 5) {
-                await loadAIContent(true);
+            // 如果系统已初始化且没有足够的内容，加载更多博主内容
+            if (isInitialized && initialPosts.length < 5) {
+                await loadMoreContent();
             }
             
             // 检查是否显示推荐（用户关注数少于5个时显示）
@@ -157,8 +201,29 @@ const HomePage = () => {
             
             setIsLoading(false);
         };
-        initLoad();
-    }, []);
+        
+        // 只有在虚拟博主系统不在加载时才执行初始化
+        if (!systemLoading) {
+            initLoad();
+        }
+    }, [isInitialized, systemLoading]); // 依赖虚拟博主系统状态
+
+    // 当虚拟博主系统初始化完成后，刷新推文数据
+    useEffect(() => {
+        if (isInitialized && !systemLoading) {
+            const refreshPosts = () => {
+                console.log('🔄 虚拟博主系统已初始化，刷新推文数据...');
+                const newPosts = getInitialPosts();
+                if (newPosts.length > 0 && newPosts[0].id !== 'system-init') {
+                    setPosts(newPosts);
+                    console.log(`✅ 已刷新 ${newPosts.length} 条推文`);
+                }
+            };
+            
+            // 延迟一下确保所有数据都已生成
+            setTimeout(refreshPosts, 2000);
+        }
+    }, [isInitialized, systemLoading]);
 
     // 处理触摸开始
     const handleTouchStart = (e) => {
@@ -192,8 +257,8 @@ const HomePage = () => {
             setIsRefreshing(true);
             setPullDistance(0);
             
-            // 执行刷新
-            await loadAIContent(false);
+            // 执行刷新 - 生成新内容
+            await generateFreshContent();
             
             setIsRefreshing(false);
         }
@@ -215,17 +280,14 @@ const HomePage = () => {
 
     // 加载更多内容
     const loadMore = async () => {
-        if (isLoadingMore) return;
-        
-        setIsLoadingMore(true);
-        await loadAIContent(true);
-        setIsLoadingMore(false);
+        // loadMoreContent 已经有自己的loading状态管理，直接调用即可
+        await loadMoreContent();
     };
 
     // 手动刷新按钮
     const handleManualRefresh = async () => {
         setIsRefreshing(true);
-        await loadAIContent(false);
+        await generateFreshContent();
         setIsRefreshing(false);
     };
 
@@ -295,8 +357,16 @@ const HomePage = () => {
         };
 
         const handleUserClick = () => {
+            // 如果是虚拟博主的推文，直接路由到虚拟博主页面
+            if (post.bloggerId) {
+                console.log(`🎯 点击虚拟博主推文，路由到博主页面: ${post.bloggerId}`);
+                navigate(`/user/${post.bloggerId}`);
+                return;
+            }
+            
+            // 否则按照原来的逻辑处理非虚拟博主
             const userId = contentStorage.generateUserIdFromName(post.expertName);
-            console.log('点击用户:', post.expertName, '生成ID:', userId);
+            console.log('点击非虚拟博主用户:', post.expertName, '生成ID:', userId);
             
             // 检查用户是否存在
             const user = contentStorage.getUser(userId);
@@ -491,17 +561,19 @@ const HomePage = () => {
                 </section>
 
                 {/* 错误提示 - 极简样式 */}
-                {error && (
+                {(error || systemError) && (
                     <div className="bg-red-50 border border-red-100 text-red-700 px-6 py-4 rounded-lg mb-8 text-center">
-                        {error}
+                        {error || systemError}
                     </div>
                 )}
 
                 {/* 加载中状态 - 极简设计 */}
-                {isLoading && posts.length === 0 ? (
+                {(isLoading || systemLoading) && posts.length === 0 ? (
                     <div className="text-center py-20">
                         <Loader className="animate-spin h-8 w-8 text-gray-900 mx-auto mb-4" />
-                        <p className="text-gray-600">Loading amazing content...</p>
+                        <p className="text-gray-600">
+                            {systemLoading ? 'Initializing virtual blogger system...' : 'Loading amazing content...'}
+                        </p>
                     </div>
                 ) : (
                     <>
@@ -549,7 +621,7 @@ const HomePage = () => {
             </main>
 
             {/* 自定义字体 */}
-            <style jsx>{`
+            <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap');
                 
                 .font-hand {

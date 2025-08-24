@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserPlus, UserCheck, MoreHorizontal, MapPin, Calendar, Link2, Verified, BookOpen, Clock, Tag, ChevronRight, Heart, MessageCircle, Bookmark } from 'lucide-react';
+import { ArrowLeft, UserPlus, UserCheck, MoreHorizontal, MapPin, Calendar, Link2, Verified, BookOpen, Clock, Tag, ChevronRight, Heart, MessageCircle, Bookmark, Bell, RefreshCw } from 'lucide-react';
 import APIService from '../services/APIService';
 import contentStorage from '../services/ContentStorage';
+import { bloggerManager } from '../data/virtualBloggers';
+import { dynamicFeedPostsManager } from '../data/dynamicFeedPosts';
+import { dynamicBlogPostsManager } from '../data/dynamicBlogPosts';
+import { useVirtualBloggers } from '../hooks/useVirtualBloggers';
 
 const UserProfile = () => {
     const { userId } = useParams();
@@ -17,140 +21,155 @@ const UserProfile = () => {
     const [isBlogGenerating, setIsBlogGenerating] = useState(false);
     const [hasInitialized, setHasInitialized] = useState(false);
     const [isInitializing, setIsInitializing] = useState(false);
+    const [isVirtualBlogger, setIsVirtualBlogger] = useState(false);
+    const [bloggerData, setBloggerData] = useState(null);
+    const [isUpdating, setIsUpdating] = useState(false);
+    
     const apiService = APIService.getInstance();
+    const { isInitialized } = useVirtualBloggers();
     
     // 使用 useRef 创建绝对的单次执行锁，不受 React Strict Mode 影响
     const initializationLockRef = useRef({});
     const blogGenerationLockRef = useRef({});
     const postGenerationLockRef = useRef({});
 
-    // 从持久化存储获取用户数据
+    // 检查是否为虚拟博主
+    const checkIfVirtualBlogger = useCallback(() => {
+        if (!isInitialized) return false;
+        
+        // 根据userId查找对应的虚拟博主
+        const blogger = bloggerManager.getAllBloggers().find(b => {
+            // 尝试匹配用户ID或生成用户ID
+            const generatedUserId = contentStorage.generateUserIdFromName(b.name);
+            return b.id === userId || generatedUserId === userId;
+        });
+        
+        if (blogger) {
+            console.log(`🤖 发现虚拟博主: ${blogger.name}`);
+            setBloggerData(blogger);
+            setIsVirtualBlogger(true);
+            return true;
+        }
+        
+        setIsVirtualBlogger(false);
+        setBloggerData(null);
+        return false;
+    }, [userId, isInitialized]);
+
+    // 辅助函数：为推文选择emoji
+    const getEmojiForPost = (shortPost) => {
+        const moodEmojis = {
+            'excited': '🚀', 'happy': '😊', 'thoughtful': '🤔',
+            'focused': '🔍', 'creative': '💡', 'accomplished': '🎉',
+            'curious': '🧐', 'inspired': '✨'
+        };
+        return moodEmojis[shortPost.mood] || '📝';
+    };
+
+    // 辅助函数：格式化时间戳  
+    const formatTimestamp = (timestamp) => {
+        const now = new Date();
+        const postTime = new Date(timestamp);
+        const diffMs = now - postTime;
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffMins < 1) return '刚刚';
+        if (diffMins < 60) return `${diffMins}分钟前`;
+        if (diffHours < 24) return `${diffHours}小时前`;
+        if (diffDays < 7) return `${diffDays}天前`;
+        
+        return postTime.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    };
+
+    // 从虚拟博主获取推文
+    const getVirtualBloggerPosts = useCallback((blogger) => {
+        console.log(`📱 获取虚拟博主推文: ${blogger.name}，内容历史: ${blogger.contentHistory.length} 条`);
+        
+        // 直接从博主的contentHistory获取推文数据
+        const posts = blogger.contentHistory
+            .filter(content => content.shortPost && content.shortPost.content)
+            .map(content => ({
+                id: `${blogger.id}-post-${content.createdAt}`,
+                expertName: blogger.name,
+                expertAvatar: blogger.avatar || '/default-avatar.png',
+                expertise: blogger.expertise,
+                verified: blogger.verified,
+                content: content.shortPost.content,
+                image: getEmojiForPost(content.shortPost),
+                timestamp: formatTimestamp(content.createdAt),
+                topic: content.sectionInfo?.title || '学习心得',
+                type: 'knowledge',
+                mood: content.shortPost.mood || 'neutral',
+                likes: Math.floor(Math.random() * 2000) + 100,
+                comments: Math.floor(Math.random() * 200) + 10,
+                shares: Math.floor(Math.random() * 100) + 5,
+                bookmarks: Math.floor(Math.random() * 500) + 20,
+                progress: content.progress,
+                sectionInfo: content.sectionInfo,
+                passed: content.passed
+            }))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+            .slice(0, 10);
+            
+        console.log(`✅ 处理后的推文数量: ${posts.length}`);
+        return posts;
+    }, []);
+
+    // 从虚拟博主获取博客文章
+    const getVirtualBloggerArticles = useCallback((blogger) => {
+        console.log(`📚 获取虚拟博主文章: ${blogger.name}，内容历史: ${blogger.contentHistory.length} 条`);
+        
+        // 直接从博主的contentHistory获取文章数据
+        const articles = blogger.contentHistory
+            .filter(content => content.longArticle && content.longArticle.title)
+            .map(content => ({
+                id: `${blogger.id}-article-${content.createdAt}`,
+                title: content.longArticle.title,
+                preview: content.longArticle.summary || content.longArticle.content?.substring(0, 150) + '...',
+                content: content.longArticle.content,
+                category: content.longArticle.category || '学习心得',
+                readTime: content.longArticle.readTime || '5分钟',
+                tags: content.longArticle.tags || ['学习', content.sectionInfo?.title].filter(Boolean),
+                author: blogger.name,
+                date: formatTimestamp(content.createdAt),
+                progress: content.progress,
+                sectionInfo: content.sectionInfo,
+                passed: content.passed
+            }))
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 10);
+            
+        console.log(`✅ 处理后的文章数量: ${articles.length}`);
+        return articles;
+    }, []);
 
     // 生成用户的博客文章
     const generateUserBlogPosts = useCallback(async (user) => {
-        const lockKey = `${user.id}-blog`;
-        
-        // 使用 useRef 锁防止重复生成
-        if (blogGenerationLockRef.current[lockKey]) {
-            console.log(`🛡️ useRef锁定阻止: ${user.name} 博客重复生成`);
-            return [];
+        // 如果是虚拟博主，直接从虚拟博主系统获取内容
+        if (isVirtualBlogger && bloggerData) {
+            console.log(`🤖 从虚拟博主系统获取博客文章: ${bloggerData.name}`);
+            return getVirtualBloggerArticles(bloggerData);
         }
         
-        // 立即设置锁
-        blogGenerationLockRef.current[lockKey] = true;
-        
-        if (isBlogGenerating) {
-            console.log(`⚠️ 博客文章正在生成中，跳过重复请求 - ${user.name}`);
-            // 清除锁，因为这次没有真正开始生成
-            delete blogGenerationLockRef.current[lockKey];
-            return [];
-        }
-        
-        console.log(`🚀 开始为用户 ${user.name} 生成博客文章...`);
-        setIsBlogGenerating(true);
-        
-        const prompts = {
-            'xiaoyu': '调香师分享调香知识、香水文化、客户故事、行业见解',
-            'laochen': '古籍修复师分享修复技艺、文物故事、传统工艺、文化传承',
-            'linainai': '退休教师分享科学小实验、生活妙招、教育经验、育儿心得'
-        };
-        
-        try {
-            const result = await apiService.generateUserBlogPosts(
-                user.name, 
-                user.expertise, 
-                prompts[user.id] || user.expertise, 
-                5
-            );
-            
-            if (result && result.blogPosts) {
-                const newBlogPosts = result.blogPosts.map(post => ({
-                    ...post,
-                    id: `${user.id}-blog-${Date.now()}-${Math.random()}`,
-                    author: user.name,
-                    date: new Date().toLocaleDateString('zh-CN')
-                }));
-                
-                // 保存到持久化存储
-                contentStorage.saveUserBlogPosts(user.id, newBlogPosts, false);
-                
-                setIsBlogGenerating(false);
-                // 清除锁
-                delete blogGenerationLockRef.current[lockKey];
-                return newBlogPosts;
-            }
-        } catch (error) {
-            console.error('生成用户博客文章失败:', error);
-        }
-        
-        setIsBlogGenerating(false);
-        // 清除锁
-        delete blogGenerationLockRef.current[lockKey];
+        // 非虚拟博主情况下，不再生成新内容，直接返回空数组
+        console.log(`⚠️ 非虚拟博主用户 ${user.name}，跳过博客文章生成`);
         return [];
-    }, [isBlogGenerating, apiService]);
+    }, [isVirtualBlogger, bloggerData, getVirtualBloggerArticles]);
 
     // 生成用户的推文
     const generateUserPosts = useCallback(async (user) => {
-        const lockKey = `${user.id}-posts`;
-        
-        // 使用 useRef 锁防止重复生成
-        if (postGenerationLockRef.current[lockKey]) {
-            console.log(`🛡️ useRef锁定阻止: ${user.name} 推文重复生成`);
-            return [];
+        // 如果是虚拟博主，直接从虚拟博主系统获取推文
+        if (isVirtualBlogger && bloggerData) {
+            console.log(`🤖 从虚拟博主系统获取推文: ${bloggerData.name}`);
+            return getVirtualBloggerPosts(bloggerData);
         }
         
-        // 立即设置锁
-        postGenerationLockRef.current[lockKey] = true;
-        
-        if (isGenerating) {
-            console.log(`⚠️ 推文正在生成中，跳过重复请求 - ${user.name}`);
-            // 清除锁，因为这次没有真正开始生成
-            delete postGenerationLockRef.current[lockKey];
-            return [];
-        }
-        
-        console.log(`🚀 开始为用户 ${user.name} 生成推文...`);
-        setIsGenerating(true);
-        
-        const prompts = {
-            'xiaoyu': '调香师分享调香经验、香水知识、客户故事',
-            'laochen': '古籍修复师分享修复技艺、文物故事、传统工艺',
-            'linainai': '退休教师分享生活妙招、科学小知识、育儿经验'
-        };
-        
-        try {
-            const result = await apiService.generateUserPosts(user.name, user.expertise, prompts[user.id] || user.expertise, 5);
-            if (result && result.posts) {
-                const newPosts = result.posts.map(post => ({
-                    ...post,
-                    id: `${user.id}-${Date.now()}-${Math.random()}`,
-                    expertName: user.name,
-                    expertAvatar: user.avatar,
-                    expertise: user.expertise,
-                    verified: user.verified,
-                    likes: Math.floor(Math.random() * 2000) + 100,
-                    comments: Math.floor(Math.random() * 200) + 10,
-                    shares: Math.floor(Math.random() * 100) + 5,
-                    bookmarks: Math.floor(Math.random() * 500) + 20
-                }));
-                
-                // 保存到持久化存储
-                contentStorage.saveUserPosts(user.id, newPosts, true);
-                
-                setIsGenerating(false);
-                // 清除锁
-                delete postGenerationLockRef.current[lockKey];
-                return newPosts;
-            }
-        } catch (error) {
-            console.error('生成用户推文失败:', error);
-        }
-        
-        setIsGenerating(false);
-        // 清除锁
-        delete postGenerationLockRef.current[lockKey];
+        // 非虚拟博主情况下，不再生成新内容，直接返回空数组
+        console.log(`⚠️ 非虚拟博主用户 ${user.name}，跳过推文生成`);
         return [];
-    }, [isGenerating, apiService]);
+    }, [isVirtualBlogger, bloggerData, getVirtualBloggerPosts]);
 
     // 当userId变化时重置初始化状态
     useEffect(() => {
@@ -184,6 +203,42 @@ const UserProfile = () => {
             setIsLoading(true);
             console.log(`🚀 开始加载用户数据: ${userId}`);
             
+            // 内部函数定义 - 检查是否为虚拟博主
+            const checkVBlogger = () => {
+                console.log(`🔍 检查虚拟博主: ${userId}, 系统初始化状态: ${isInitialized}`);
+                
+                if (!isInitialized) {
+                    console.log(`⏳ 虚拟博主系统尚未初始化，跳过检查`);
+                    return { isVirtual: false, blogger: null };
+                }
+                
+                // 根据userId查找对应的虚拟博主
+                const allBloggers = bloggerManager.getAllBloggers();
+                console.log(`🔍 搜索 ${allBloggers.length} 个博主中的匹配项`);
+                
+                const blogger = allBloggers.find(b => {
+                    // 尝试匹配用户ID或生成用户ID
+                    const generatedUserId = contentStorage.generateUserIdFromName(b.name);
+                    console.log(`🔍 检查博主 ${b.name} (ID: ${b.id}, 生成ID: ${generatedUserId}) vs 目标 ${userId}`);
+                    return b.id === userId || generatedUserId === userId;
+                });
+                
+                if (blogger) {
+                    console.log(`🤖 发现虚拟博主: ${blogger.name} (ID: ${blogger.id})`);
+                    setBloggerData(blogger);
+                    setIsVirtualBlogger(true);
+                    return { isVirtual: true, blogger };
+                }
+                
+                console.log(`❌ 未找到匹配的虚拟博主: ${userId}`);
+                setIsVirtualBlogger(false);
+                setBloggerData(null);
+                return { isVirtual: false, blogger: null };
+            };
+            
+            // 检查是否为虚拟博主
+            const { isVirtual, blogger } = checkVBlogger();
+            
             // 从存储获取用户数据
             const user = contentStorage.getUser(userId);
             if (user) {
@@ -195,8 +250,19 @@ const UserProfile = () => {
                 // 获取用户推文
                 let posts = contentStorage.getUserPosts(userId, 10);
                 
-                // 如果没有推文，生成一些
-                if (posts.length === 0) {
+                // 如果是虚拟博主，直接从虚拟博主系统获取推文
+                if (isVirtual && blogger) {
+                    console.log('🤖 从虚拟博主系统获取推文');
+                    const feedPosts = dynamicFeedPostsManager.getBloggerPosts(blogger.id, 10);
+                    posts = feedPosts.map(post => ({
+                        ...post,
+                        expertAvatar: post.expertAvatar || blogger.avatar,
+                        likes: post.likes || Math.floor(Math.random() * 2000) + 100,
+                        comments: post.comments || Math.floor(Math.random() * 200) + 10,
+                        shares: post.shares || Math.floor(Math.random() * 100) + 5,
+                        bookmarks: post.bookmarks || Math.floor(Math.random() * 500) + 20
+                    }));
+                } else if (posts.length === 0) {
                     console.log('本地没有推文，开始生成...');
                     posts = await generateUserPosts(user);
                 }
@@ -205,6 +271,12 @@ const UserProfile = () => {
                 
                 // 获取用户博客文章
                 let blogs = contentStorage.getUserBlogPosts(userId);
+                
+                // 如果是虚拟博主，从虚拟博主系统获取文章
+                if (isVirtual && blogger) {
+                    console.log('🤖 从虚拟博主系统获取博客文章');
+                    blogs = dynamicBlogPostsManager.getBloggerPosts(blogger.id, 10);
+                }
                 
                 // 检查是否需要重新生成更有个性的文章（临时机制）
                 const needRegenerate = blogs.length > 0 && blogs[0].title && 
@@ -229,7 +301,80 @@ const UserProfile = () => {
         };
         
         loadUserData();
-    }, [userId, hasInitialized, isInitializing]);
+    }, [userId, hasInitialized, isInitializing, isInitialized]); // 移除函数依赖，避免重新渲染
+
+    // 当虚拟博主系统初始化完成后，检查是否需要重新加载虚拟博主数据
+    useEffect(() => {
+        if (isInitialized && userId.startsWith('blogger_') && !bloggerData) {
+            console.log(`🔄 虚拟博主系统已初始化，检查博主: ${userId}`);
+            
+            // 立即检查虚拟博主
+            const allBloggers = bloggerManager.getAllBloggers();
+            console.log(`🔍 搜索 ${allBloggers.length} 个博主中的匹配项`);
+            
+            const blogger = allBloggers.find(b => {
+                const generatedUserId = contentStorage.generateUserIdFromName(b.name);
+                console.log(`🔍 检查博主 ${b.name} (ID: ${b.id}, 生成ID: ${generatedUserId}) vs 目标 ${userId}`);
+                return b.id === userId || generatedUserId === userId;
+            });
+            
+            if (blogger) {
+                console.log(`🎉 发现虚拟博主: ${blogger.name} (ID: ${blogger.id})`);
+                setBloggerData(blogger);
+                setIsVirtualBlogger(true);
+                
+                // 直接从虚拟博主的内容历史获取数据
+                const contentHistory = blogger.contentHistory || [];
+                console.log(`📚 博主内容历史: ${contentHistory.length} 条记录`);
+                
+                // 提取推文数据
+                const feedPosts = contentHistory
+                    .filter(content => content.shortPost && content.shortPost.content)
+                    .map((content, index) => ({
+                        id: `${blogger.id}-post-${content.createdAt}`,
+                        content: content.shortPost.content,
+                        expertName: blogger.name,
+                        expertise: blogger.expertise,
+                        verified: blogger.verified,
+                        expertAvatar: blogger.avatar,
+                        timestamp: formatTimestamp(content.createdAt),
+                        topic: content.sectionInfo?.title || '学习心得',
+                        likes: Math.floor(Math.random() * 2000) + 100,
+                        comments: Math.floor(Math.random() * 200) + 10,
+                        shares: Math.floor(Math.random() * 100) + 5,
+                        bookmarks: Math.floor(Math.random() * 500) + 20,
+                        mood: content.shortPost.mood || 'neutral'
+                    }))
+                    .slice(0, 10);
+                
+                // 提取长文数据
+                const blogPosts = contentHistory
+                    .filter(content => content.longArticle && content.longArticle.title)
+                    .map((content, index) => ({
+                        id: `${blogger.id}-blog-${content.createdAt}`,
+                        title: content.longArticle.title,
+                        preview: content.longArticle.content.substring(0, 200) + '...',
+                        content: content.longArticle.content,
+                        date: content.createdAt,
+                        readTime: Math.ceil(content.longArticle.content.length / 200) + ' min read',
+                        category: content.sectionInfo?.title || blogger.expertise,
+                        tags: content.longArticle.tags || [blogger.expertise],
+                        likes: Math.floor(Math.random() * 1000) + 50,
+                        comments: Math.floor(Math.random() * 100) + 5,
+                        views: Math.floor(Math.random() * 5000) + 200
+                    }))
+                    .slice(0, 10);
+                
+                console.log(`📱 为虚拟博主 ${blogger.name} 加载了 ${feedPosts.length} 条推文, ${blogPosts.length} 篇文章`);
+                
+                setUserPosts(feedPosts);
+                setBlogPosts(blogPosts);
+                
+            } else {
+                console.log(`❌ 未找到匹配的虚拟博主: ${userId}`);
+            }
+        }
+    }, [isInitialized, userId, bloggerData]);
 
     const handleFollow = () => {
         if (isFollowing) {
@@ -242,6 +387,47 @@ const UserProfile = () => {
         setIsFollowing(!isFollowing);
         const updatedUser = contentStorage.getUser(userId);
         setUserData(updatedUser);
+    };
+
+    // 处理追更请求（手动触发博主内容生成）
+    const handleUpdateRequest = async () => {
+        if (!isVirtualBlogger || !bloggerData || isUpdating) {
+            return;
+        }
+
+        setIsUpdating(true);
+        console.log(`🔔 用户手动触发博主更新: ${bloggerData.name}`);
+
+        try {
+            // 导入博主调度器
+            const { bloggerScheduler } = await import('../services/BloggerScheduler');
+            
+            // 手动触发该博主的内容生成
+            const result = await bloggerScheduler.scheduleBlogger(bloggerData.id);
+            
+            if (result.success) {
+                console.log('✅ 博主内容更新成功');
+                
+                // 刷新页面数据
+                setTimeout(() => {
+                    // 重新获取博主推文
+                    const updatedPosts = getVirtualBloggerPosts(bloggerData);
+                    setUserPosts(updatedPosts);
+                    
+                    // 重新获取博主文章
+                    const updatedArticles = getVirtualBloggerArticles(bloggerData);
+                    setBlogPosts(updatedArticles);
+                    
+                    console.log('📱 页面数据已刷新');
+                }, 1000);
+            } else {
+                console.error('博主内容更新失败:', result.error);
+            }
+        } catch (error) {
+            console.error('追更请求处理失败:', error);
+        } finally {
+            setIsUpdating(false);
+        }
     };
 
     // 加载更多推文
@@ -260,7 +446,7 @@ const UserProfile = () => {
         );
     }
 
-    if (!userData) {
+    if (!userData && !bloggerData) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
@@ -276,6 +462,28 @@ const UserProfile = () => {
         );
     }
 
+    // 获取有效的用户数据 - 优先使用虚拟博主数据
+    const effectiveUserData = isVirtualBlogger && bloggerData ? {
+        name: bloggerData.name,
+        avatar: bloggerData.avatar,
+        expertise: bloggerData.expertise,
+        verified: bloggerData.verified || true, // 虚拟博主默认认证
+        bio: typeof bloggerData.script?.personality === 'string' 
+            ? bloggerData.script.personality 
+            : (bloggerData.script?.personality?.traits ? 
+                `${bloggerData.script.personality.traits.join(', ')} - ${bloggerData.script.personality.communicationStyle || ''}` 
+                : '这是一位虚拟博主，正在分享学习心得'),
+        followers: Math.floor(Math.random() * 5000) + 1000, // 随机粉丝数
+        following: Math.floor(Math.random() * 100) + 50,
+        posts: userPosts.length,
+        blogs: blogPosts.length,
+        tags: ['AI学习', '虚拟博主', bloggerData.expertise], // 虚拟博主标签
+        location: '虚拟世界',
+        joinDate: bloggerData.createdAt ? new Date(bloggerData.createdAt).toLocaleDateString() : '最近',
+        website: null,
+        achievements: [] // 虚拟博主暂无成就系统
+    } : userData;
+
     return (
         <div className="min-h-screen bg-gray-50">
             {/* 顶部导航栏 - 现代化设计 */}
@@ -290,8 +498,8 @@ const UserProfile = () => {
                                 <ArrowLeft size={20} className="text-gray-600" />
                             </button>
                             <div className="flex items-center space-x-3">
-                                <h1 className="font-bold text-xl text-gray-900">{userData.name}</h1>
-                                {userData.verified && (
+                                <h1 className="font-bold text-xl text-gray-900">{effectiveUserData.name}</h1>
+                                {effectiveUserData.verified && (
                                     <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
                                         <Verified className="text-white" size={14} />
                                     </div>
@@ -320,8 +528,8 @@ const UserProfile = () => {
                                 {/* 头像 */}
                                 <div className="relative">
                                     <img
-                                        src={userData.avatar}
-                                        alt={userData.name}
+                                        src={effectiveUserData.avatar}
+                                        alt={effectiveUserData.name}
                                         className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-xl bg-gradient-to-r from-blue-100 to-purple-100"
                                         onError={(e) => {
                                             e.target.style.display = 'none';
@@ -331,7 +539,7 @@ const UserProfile = () => {
                                     <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 flex items-center justify-center text-6xl border-4 border-white shadow-xl" style={{display: 'none'}}>
                                         😊
                                     </div>
-                                    {userData.verified && (
+                                    {effectiveUserData.verified && (
                                         <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
                                             <Verified className="text-white" size={20} />
                                         </div>
@@ -340,58 +548,99 @@ const UserProfile = () => {
                                 
                                 {/* 基本信息 */}
                                 <div className="flex-1 text-center sm:text-left">
-                                    <h2 className="text-3xl font-bold text-gray-900 mb-2">{userData.name}</h2>
-                                    <p className="text-lg text-gray-600 mb-4">{userData.expertise}</p>
+                                    <div className="flex items-center justify-center sm:justify-start gap-3 mb-2">
+                                        <h2 className="text-3xl font-bold text-gray-900">{effectiveUserData.name}</h2>
+                                        {isVirtualBlogger && (
+                                            <span className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-full border border-green-200">
+                                                🤖 虚拟博主
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-lg text-gray-600 mb-2">{effectiveUserData.expertise}</p>
+                                    {isVirtualBlogger && bloggerData && (
+                                        <p className="text-sm text-blue-600 mb-4">
+                                            学习进度: {bloggerData.currentProgress} | 
+                                            目标: {bloggerData.script.learningGoal.substring(0, 50)}...
+                                        </p>
+                                    )}
                                     
                                     {/* 统计数据 - 横向显示 */}
                                     <div className="flex justify-center sm:justify-start space-x-8 mb-4">
                                         <div className="text-center">
-                                            <div className="text-2xl font-bold text-gray-900">{userData.followers.toLocaleString()}</div>
+                                            <div className="text-2xl font-bold text-gray-900">{effectiveUserData.followers.toLocaleString()}</div>
                                             <div className="text-sm text-gray-500">关注者</div>
                                         </div>
                                         <div className="text-center">
-                                            <div className="text-2xl font-bold text-gray-900">{userData.following}</div>
+                                            <div className="text-2xl font-bold text-gray-900">{effectiveUserData.following}</div>
                                             <div className="text-sm text-gray-500">关注中</div>
                                         </div>
                                         <div className="text-center">
-                                            <div className="text-2xl font-bold text-gray-900">{userData.posts}</div>
+                                            <div className="text-2xl font-bold text-gray-900">{effectiveUserData.posts}</div>
                                             <div className="text-sm text-gray-500">推文</div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             
-                            {/* 关注按钮 */}
-                            <button
-                                onClick={handleFollow}
-                                className={`mt-4 sm:mt-0 px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg ${
-                                    isFollowing
-                                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                        : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600'
-                                }`}
-                            >
-                                {isFollowing ? (
-                                    <div className="flex items-center space-x-2">
-                                        <UserCheck size={20} />
-                                        <span>已关注</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center space-x-2">
-                                        <UserPlus size={20} />
-                                        <span>关注</span>
-                                    </div>
+                            {/* 按钮组 */}
+                            <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+                                {/* 关注按钮 */}
+                                <button
+                                    onClick={handleFollow}
+                                    className={`px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg ${
+                                        isFollowing
+                                            ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                            : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600'
+                                    }`}
+                                >
+                                    {isFollowing ? (
+                                        <div className="flex items-center space-x-2">
+                                            <UserCheck size={20} />
+                                            <span>已关注</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center space-x-2">
+                                            <UserPlus size={20} />
+                                            <span>关注</span>
+                                        </div>
+                                    )}
+                                </button>
+
+                                {/* 追更按钮 - 仅对虚拟博主显示 */}
+                                {isVirtualBlogger && (
+                                    <button
+                                        onClick={handleUpdateRequest}
+                                        disabled={isUpdating}
+                                        className={`px-4 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg ${
+                                            isUpdating
+                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+                                        }`}
+                                        title="催更新内容"
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            {isUpdating ? (
+                                                <RefreshCw size={18} className="animate-spin" />
+                                            ) : (
+                                                <Bell size={18} />
+                                            )}
+                                            <span className="hidden sm:inline">
+                                                {isUpdating ? '更新中' : '催更'}
+                                            </span>
+                                        </div>
+                                    </button>
                                 )}
-                            </button>
+                            </div>
                         </div>
 
                         {/* 个人简介 */}
                         <div className="mb-6">
-                            <p className="text-gray-800 text-lg leading-relaxed">{userData.bio}</p>
+                            <p className="text-gray-800 text-lg leading-relaxed">{effectiveUserData.bio}</p>
                         </div>
 
                         {/* 标签 */}
                         <div className="flex flex-wrap gap-2 mb-6">
-                            {userData.tags.map(tag => (
+                            {effectiveUserData.tags || [].map(tag => (
                                 <span
                                     key={tag}
                                     className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer"
@@ -403,27 +652,27 @@ const UserProfile = () => {
 
                         {/* 附加信息 */}
                         <div className="flex flex-wrap gap-6 text-gray-600">
-                            {userData.location && (
+                            {effectiveUserData.location && (
                                 <div className="flex items-center space-x-2">
                                     <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                                         <MapPin size={16} />
                                     </div>
-                                    <span>{userData.location}</span>
+                                    <span>{effectiveUserData.location}</span>
                                 </div>
                             )}
                             <div className="flex items-center space-x-2">
                                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                                     <Calendar size={16} />
                                 </div>
-                                <span>加入于 {userData.joinDate}</span>
+                                <span>加入于 {effectiveUserData.joinDate}</span>
                             </div>
-                            {userData.website && (
+                            {effectiveUserData.website && (
                                 <div className="flex items-center space-x-2">
                                     <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                                         <Link2 size={16} />
                                     </div>
-                                    <a href={`https://${userData.website}`} className="text-blue-600 hover:text-blue-700 hover:underline transition-colors">
-                                        {userData.website}
+                                    <a href={`https://${effectiveUserData.website}`} className="text-blue-600 hover:text-blue-700 hover:underline transition-colors">
+                                        {effectiveUserData.website}
                                     </a>
                                 </div>
                             )}
@@ -480,8 +729,8 @@ const UserProfile = () => {
                                 <div className="p-6 pb-4">
                                     <div className="flex items-center space-x-4 mb-4">
                                         <img
-                                            src={userData.avatar}
-                                            alt={userData.name}
+                                            src={effectiveUserData.avatar}
+                                            alt={effectiveUserData.name}
                                             className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm bg-gradient-to-r from-blue-100 to-purple-100"
                                             onError={(e) => {
                                                 e.target.style.display = 'none';
@@ -492,8 +741,8 @@ const UserProfile = () => {
                                             😊
                                         </div>
                                         <div className="flex-1">
-                                            <h3 className="font-semibold text-gray-900">{userData.name}</h3>
-                                            <p className="text-sm text-gray-500">{userData.expertise}</p>
+                                            <h3 className="font-semibold text-gray-900">{effectiveUserData.name}</h3>
+                                            <p className="text-sm text-gray-500">{effectiveUserData.expertise}</p>
                                         </div>
                                         <span className="text-sm text-gray-400">{post.timestamp}</span>
                                     </div>
@@ -579,8 +828,8 @@ const UserProfile = () => {
                                                 <div className="flex items-center gap-3 mb-3">
                                                     <div className="flex items-center gap-2">
                                                         <img
-                                                            src={userData.avatar}
-                                                            alt={userData.name}
+                                                            src={effectiveUserData.avatar}
+                                                            alt={effectiveUserData.name}
                                                             className="w-6 h-6 rounded-full object-cover bg-gray-100"
                                                             onError={(e) => {
                                                                 e.target.style.display = 'none';
@@ -590,7 +839,7 @@ const UserProfile = () => {
                                                         <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-sm" style={{display: 'none'}}>
                                                             😊
                                                         </div>
-                                                        <span className="text-sm text-gray-600 font-medium">{userData.name}</span>
+                                                        <span className="text-sm text-gray-600 font-medium">{effectiveUserData.name}</span>
                                                     </div>
                                                     <span className="text-gray-300">•</span>
                                                     <span className="text-sm text-gray-500">{post.category}</span>
@@ -662,8 +911,8 @@ const UserProfile = () => {
 
                 {activeTab === 'achievements' && (
                     <div className="space-y-4">
-                        {userData.achievements && userData.achievements.length > 0 ? (
-                            userData.achievements.map((achievement, index) => (
+                        {effectiveUserData.achievements && effectiveUserData.achievements.length > 0 ? (
+                            effectiveUserData.achievements.map((achievement, index) => (
                                 <div key={index} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-300">
                                     <div className="flex items-start space-x-4">
                                         <div className="w-12 h-12 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-full flex items-center justify-center">

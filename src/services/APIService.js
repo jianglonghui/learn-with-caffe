@@ -515,33 +515,6 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
         return this.request(prompt, { maxTokens: 2500 });
     }
 
-    async generateUserPosts(userName, expertise, context, count = 5) {
-        const prompt = `为"${userName}"（${expertise}）生成${count}条个人推文。
-
-用户背景：${context}
-
-严格按照以下JSON格式返回：
-{
-  "posts": [
-    {
-      "id": "unique_id",
-      "content": "推文内容（保持该用户的语言风格和专业特色，100-200字）",
-      "image": "可选的emoji图标",
-      "timestamp": "时间（如：2小时前、昨天、3天前）",
-      "type": "knowledge/trivia/tip/experience/achievement"
-    }
-  ]
-}
-
-要求：
-1. 保持用户的专业特色和个人风格
-2. 内容要连贯，体现专业性
-3. 时间要有变化，显示不同时期的推文
-4. 内容类型要多样化
-
-DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
-        return this.request(prompt, { maxTokens: 3000 });
-    }
 
     async generateRecommendedUsers(recommendationData, count = 4) {
         const { subjects, professions, verificationRate } = recommendationData;
@@ -658,70 +631,6 @@ DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
         return this.request(prompt, { maxTokens: 4000 });
     }
 
-    async generateUserBlogPosts(userName, expertise, context, count = 5) {
-        const prompt = `你是博主"${userName}"（${expertise}），要为你的个人博客生成${count}篇文章信息。
-
-【背景信息】
-${context}
-
-【重点方向】
-无论你的专业身份是什么，都要从以下角度思考和创作实用内容：
-
-1. **人际关系与沟通**：
-   - 如何在你的专业领域建立有效的人际网络
-   - 与同事、客户、上级的沟通技巧
-   - 处理职场冲突和人际矛盾的实战经验
-   - 如何在专业环境中展现个人魅力
-
-2. **科技工具与效率提升**：
-   - 你所在行业最实用的软件和工具推荐
-   - 如何用科技手段提高工作效率
-   - 数字化转型对你这个行业的影响
-   - 新技术带来的机遇和挑战
-
-3. **赚钱机会与职业发展**：
-   - 你这个行业的副业机会和变现方式
-   - 职业成长路径和薪资谈判技巧
-   - 如何将专业技能转化为额外收入
-   - 行业内的投资和理财建议
-
-【内容要求】
-- 必须提供具体可行的建议，不要空泛理论
-- 分享真实的个人经历和案例
-- 给出具体的数字、方法、步骤
-- 内容要对年轻人的现实生活有帮助
-- 每篇文章都要有实际操作价值
-
-请严格按照以下JSON格式输出：
-
-{
-  "blogPosts": [
-    {
-      "id": "post1",
-      "title": "实用性强、能解决具体问题的标题",
-      "preview": "预览要包含具体的技巧、方法或机会，让读者立即感受到价值，100-150字",
-      "category": "人际技巧/科技工具/赚钱机会/职场发展",
-      "readTime": "5分钟",
-      "tags": ["实用技巧", "具体标签1", "具体标签2"]
-    }
-  ]
-}
-
-内容示例：
-- 程序员："我用这3个沟通技巧，让产品经理不再频繁改需求" （人际关系）
-- 设计师："推荐5个AI工具，让你的设计效率提升300%" （科技工具）
-- 会计："兼职代账如何月入5000+？我的实操经验分享" （赚钱机会）
-- 老师："从月薪3000到年薪20万，我是如何转型做培训师的" （职业发展）
-
-注意：
-- 标题要直接说明能解决什么问题或获得什么收益
-- 预览要包含具体的方法、数字或步骤
-- 避免抽象概念，专注实用价值
-- 不要包含换行符和特殊字符
-
-现在请深入分析"${userName}""${expertise}"这个身份，生成真正有用的实战内容：`;
-        return this.request(prompt, { maxTokens: 2500 });
-    }
 
     async generateWorkshopSimulator(selectedConcepts, selectedKnowledgePoints, topic) {
         const prompt = `为"${topic}"主题创建智慧工坊模拟器，基于以下选中的概念和知识点：
@@ -801,6 +710,182 @@ ${context}
 
 DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
         return this.request(prompt, { maxTokens: 10000 });
+    }
+
+    // ==================== 虚拟博主内容生成相关方法 ====================
+    
+    // 生成博主简短推文
+    async generateBloggerShortPost(context) {
+        const prompt = `你是虚拟博主"${context.bloggerName}"（${context.expertise}），正在学习"${context.currentModule}"模块中的"${context.currentSection}"小节。
+
+【你的性格特点】
+- 类型：${context.personality.type}
+- 特质：${context.personality.traits.join('、')}
+- 沟通风格：${context.personality.communicationStyle}
+
+【当前学习内容】
+${context.sectionContent}
+
+【学习目标】
+${context.learningGoal}
+
+【任务】请基于你的性格特点和当前学习内容，生成一条简短的推文（100-150字），分享你对这个小节的学习心得和感悟。
+
+要求：
+1. 体现你的性格特点和沟通风格
+2. 包含具体的学习收获和思考
+3. 语言自然，符合社交媒体推文风格
+4. 可以适当使用emoji
+5. 展现学习的进步和成长
+
+严格按照以下JSON格式回答：
+{
+  "content": "推文内容",
+  "tags": ["相关标签1", "相关标签2"],
+  "mood": "学习心情（如：兴奋、专注、思考等）"
+}
+
+DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
+        return this.request(prompt, { maxTokens: 800 });
+    }
+
+    // 生成博主长文章
+    async generateBloggerLongArticle(context) {
+        const prompt = `你是虚拟博主"${context.bloggerName}"（${context.expertise}），刚完成了"${context.currentModule}"模块中的"${context.currentSection}"小节的学习。
+
+【你的背景信息】
+- 专业身份：${context.expertise}
+- 性格特点：${context.personality.type}
+- 特质：${context.personality.traits.join('、')}
+- 沟通风格：${context.personality.communicationStyle}
+- 学习目标：${context.learningGoal}
+
+【刚学完的内容】
+标题：${context.currentSection}
+内容：${context.sectionContent}
+
+【任务】请写一篇800-1200字的深度学习总结文章，包含以下结构：
+
+1. 引言 - 为什么学习这个内容
+2. 核心知识点梳理 - 详细解析学到的关键概念
+3. 实践思考 - 结合你的专业背景，思考如何应用
+4. 学习心得 - 个人感悟和收获
+5. 下一步计划 - 后续学习方向
+
+严格按照以下JSON格式回答：
+{
+  "title": "文章标题",
+  "content": "完整的文章内容（markdown格式）",
+  "summary": "文章摘要（100-150字）",
+  "readTime": "预计阅读时间（如：8分钟）",
+  "tags": ["标签1", "标签2", "标签3"],
+  "category": "文章分类"
+}
+
+DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
+        return this.request(prompt, { maxTokens: 4000 });
+    }
+
+    // 评估博主学习进度
+    async evaluateBloggerProgress(context) {
+        const prompt = `请评估虚拟博主"${context.bloggerInfo.name}"（${context.bloggerInfo.expertise}）的学习情况。
+
+【博主信息】
+- 姓名：${context.bloggerInfo.name}
+- 专业：${context.bloggerInfo.expertise}
+- 性格：${context.bloggerInfo.personality.type}
+
+【学习内容】
+章节：${context.sectionInfo.title}
+内容：${context.sectionInfo.content}
+
+【生成的学习成果】
+推文：${context.generatedContent.shortPost.content || '无'}
+长文：${context.generatedContent.longArticle.title || '无'} - ${context.generatedContent.longArticle.summary || '无'}
+
+【评估标准】
+1. 内容理解度 - 是否准确理解了学习内容的核心概念
+2. 思考深度 - 是否有深入的思考和个人见解  
+3. 表达质量 - 是否清晰准确地表达了学习收获
+4. 实践关联 - 是否能结合专业背景进行实际应用思考
+5. 学习态度 - 是否展现了积极的学习态度和成长
+
+请根据以上标准，判断该博主是否已经充分掌握了当前学习内容，可以进入下一小节的学习。
+
+严格按照以下JSON格式回答：
+{
+  "pass": true/false,
+  "score": 85,
+  "evaluation": {
+    "understanding": 8.5,
+    "depth": 7.0,
+    "expression": 8.0,
+    "application": 8.5,
+    "attitude": 9.0
+  },
+  "feedback": "详细的评估反馈",
+  "suggestions": ["改进建议1", "改进建议2"],
+  "nextStepReady": true/false
+}
+
+DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
+        return this.request(prompt, { maxTokens: 1500 });
+    }
+
+    // 生成新的虚拟博主剧本
+    async generateBloggerScript(topic, personality = null) {
+        const personalityPrompt = personality ? 
+            `性格类型：${personality.type}，特质：${personality.traits.join('、')}` : 
+            '请为博主设计合适的性格特点';
+
+        const prompt = `为"${topic}"主题创建一个虚拟博主的完整学习剧本。
+
+【博主设定要求】
+- 专业领域：${topic}
+- ${personalityPrompt}
+- 学习目标：明确、具体、可达成
+- 学习路径：分模块、分小节，循序渐进
+
+【剧本结构要求】
+1. 学习目标 - 清晰的学习目标定义
+2. 性格特点 - 如果没有指定，请创建合适的性格
+3. 学习路径 - 包含2-3个主要模块，每个模块3-4个小节
+
+请设计一个既有深度又实用的学习计划，确保博主能够通过这个剧本获得实质性的专业成长。
+
+严格按照以下JSON格式回答：
+{
+  "bloggerProfile": {
+    "name": "博主名称",
+    "expertise": "专业身份",
+    "bio": "个人简介",
+    "verified": true/false
+  },
+  "script": {
+    "learningGoal": "具体的学习目标描述",
+    "personality": {
+      "type": "性格类型",
+      "traits": ["特质1", "特质2", "特质3", "特质4"],
+      "communicationStyle": "沟通风格描述"
+    },
+    "learningPath": {
+      "title": "学习路径标题",
+      "modules": [
+        {
+          "id": 1,
+          "title": "模块1标题",
+          "sections": [
+            {"id": 1, "title": "小节标题", "content": "学习内容描述"},
+            {"id": 2, "title": "小节标题", "content": "学习内容描述"}
+          ]
+        }
+      ]
+    }
+  }
+}
+
+DO NOT OUTPUT ANYTHING OTHER THAN VALID JSON.`;
+        return this.request(prompt, { maxTokens: 3500 });
     }
 }
 
